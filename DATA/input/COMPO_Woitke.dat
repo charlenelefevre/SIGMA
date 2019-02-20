@@ -1,0 +1,4 @@
+! File to summarize composition
+! # name	  refr_index_table_name volume_fraction	rule(mix/add)
+1 silicates MgSiO3_Dorschner 0.60 mix plaw 1.0 0.05 3000
+2 carbonaceous Carbon_BE_Zubko1996 0.15 mix plaw 1.0 0.05 3000

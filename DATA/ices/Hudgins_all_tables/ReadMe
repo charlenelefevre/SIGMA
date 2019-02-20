@@ -1,0 +1,141 @@
+J/ApJS/86/713          IR spectroscopy of ices                  (Hudgins+, 1993)
+================================================================================
+Mid- and far-infrared spectroscopy of ices: optical constants and integrated
+absorbances
+     Hudgins D.M., Sandford S.A., Allamandola L.J., Tielens A.G.G.M.
+    <Astrophys. J. Suppl. Ser. 86, 713 (1993)>
+    =1993ApJS...86..713H
+================================================================================
+ADC_Keywords: Interstellar medium; Spectra, infrared
+Keywords: line: identification - molecular data
+
+Abstract:
+    Laboratory spectra through the mid-infrared (4000 to 500cm^-1^
+    [2.5-20 micron]) have been used to calculate the optical constants
+    (n and k) and integrated absorption coefficients (A) for a variety of
+    pure and mixed molecular ices of relevance to astrophysics. The ices
+    studied were H2O, CH3OH, CO2, OCS, CH4, CO2+CH4, CO2+OCS, CO+CH4,
+    CO+OCS, O2+CH4, O2+OCS, N2+CH4, N2+OCS, H2O+CH4, H2O+OCS, and
+    H2O+CH3OH+CO+NH3. In addition, the measurements have been extended
+    through the far-infrared (500 to 50cm^1^ [20-200 micron]) for the H2O,
+    CH3OH, and H2O+CH3OH+NH3 ices.
+
+File Summary:
+--------------------------------------------------------------------------------
+ FileName  Lrecl   Records    Explanations
+--------------------------------------------------------------------------------
+ReadMe       80          .    This file
+summary.dat  22         77    Summary of spectra
+fig2.dat     29      23178    H2O:CH3OH:CO:NH3 = 100:10:1:1 Ice Mixture
+                              (Weak Interstellar Mix) percentage transmission
+fig3.dat     29      23178    H2O:CH3OH:CO:NH3 = 100:50:1:1 Ice Mixture
+                              (Strong Interstellar Mix) percentage transmission
+fig4.dat     29      19548    Pure CH3OH Ice percentage transmission
+fig5.dat     29      23175    Pure H2O Ice percentage transmission
+fig6.dat     29      16797    Pure CH4 Ice percentage transmission
+fig7.dat     29      14520    Pure CO2 Ice percentage transmission
+fig8.dat     29       7467    Pure OCS Ice percentage transmission
+fig9.dat     29      20736    CO:CH4 = 20:1 Ice Mixture percentage transmission
+fig10.dat    29       3736    CO:OCS = 20:1 Ice Mixture percentage transmission
+fig11.dat    29      34215    CO2:CH4= 20:1 Ice Mixture percentage transmission
+fig12.dat    29      21774    CO2:OCS= 20:1 Ice Mixture percentage transmission
+fig13.dat    29      22398    H2O:CH4= 20:1 Ice Mixture percentage transmission
+fig14.dat    29      18150    H2O:OCS= 20:1 Ice Mixture percentage transmission
+fig15.dat    29      21780    H2O:OCS=  2:1 Ice Mixture percentage transmission
+fig16.dat    29       9954    N2:CH4 = 20:1 Ice Mixture percentage transmission
+fig17.dat    29       9540    N2:OCS = 20:1 Ice Mixture percentage transmission
+fig18.dat    29      14931    O2:CH4 = 20:1 Ice Mixture percentage transmission
+fig19.dat    29       9538    O2:OCS = 20:1 Ice Mixture percentage transmission
+table2.dat   35      23175    H2O:CH3OH:CO:NH3 = 100:10:1:1 Ice Mixture
+                               (Weak Interstellar Mix) optical constants
+table3.dat   35      23175    H2O:CH3OH:CO:NH3 = 100:50:1:1 Ice Mixture
+                               (Strong Interstellar Mix) optical constants
+table4.dat   35      19546    Pure CH3OH Ice optical constants
+table5.dat   35       8868    Pure H2O Ice optical constants
+table6.dat   35      13992    Pure CH4 Ice optical constants
+table7.dat   35      14520    Pure CO2 Ice optical constants
+table8.dat   35       7776    Pure OCS Ice optical constants
+table9.dat   35      14092    CO:CH4  = 20:1 Ice Mixture optical constants
+table10.dat  35       7468    CO:OCS  = 20:1 Ice Mixture optical constants
+table11.dat  45      21775    CO2:CH4 = 20:1 Ice Mixture optical constants
+table12.dat  35      11873    CO2:OCS = 20:1 Ice Mixture optical constants
+table13.dat  35      14520    H2O:CH4 = 20:1 Ice Mixture optical constants
+table14.dat  35      12100    H2O:OCS = 20:1 Ice Mixture optical constants
+table15.dat  35      21774    H2O:OCS =  2:1 Ice Mixture optical constants
+table16.dat  35       7466    N2:CH4  = 20:1 Ice Mixture optical constants
+table17.dat  35       9540    N2:OCS  = 20:1 Ice Mixture optical constants
+table18.dat  35      10890    O2:CH4  = 20:1 Ice Mixture optical constants
+table19.dat  35       4770    O2:OCS  = 20:1 Ice Mixture optical constants
+--------------------------------------------------------------------------------
+
+Byte-by-byte Description of file: summary.dat
+--------------------------------------------------------------------------------
+   Bytes Format Units   Label     Explanations
+--------------------------------------------------------------------------------
+   1-  2  I2    ---     Tno       [2/19] Table/figure number (1)
+   5-  7  I3    K       T         [10/140] Temperature of the ice
+   9- 15  F7.2  cm-1    Smin      Lower bound of the frequency
+  17- 22  F6.1  cm-1    Smax      Upper bound of the frequency
+--------------------------------------------------------------------------------
+Note (1): the number corresponds to the composition of the ice as follows:
+   2 = H2O:CH3OH:CO:NH3 (100:10:1:1) weak interstellar mix
+   3 = H2O:CH3OH:CO:NH3 (100:50:1:1) strong interstellar mix
+   4 = CH3OH (methanol) ice
+   5 = H2O (water) ice
+   6 = CH4 (methane) ice
+   7 = CO2 (carbon  dioxide) ice
+   8 = OCS (carbonyl sulfide) ice
+   9 = CO:CH4 (20:1) carbon monoxide + methane ice mixture
+  10 = CO:OCS (20:1) carbon monoxide + carbonyl sulfide ice mixture
+  11 = CO2:CH4 (20:1) carbon dioxide + methane ice mixture
+  12 = CO2:OCS (20:1) carbon dioxide + carbonyl sulfide ice mixture
+  13 = H2O:CH4 (20:1) water + methane ice mixture
+  14 = H2O:OCS (20:1) water + carbonyl sulfide ice mixture
+  15 = H2O:OCS  (2:1) water + carbonyl sulfide ice mixture
+  16 = N2:CH4  (20:1) nitrogen + methane ice mixture
+  17 = N2:OCS  (20:1) nitrogen + carbonyl sulfide ice mixture
+  18 = O2:CH4  (20:1) oxygen + methane ice mixture
+  19 = O2:OCS  (20:1) oxygen + carbonyl sulfide ice mixture
+--------------------------------------------------------------------------------
+
+Byte-by-byte Description of file: fig*.dat
+--------------------------------------------------------------------------------
+   Bytes Format  Units   Label    Explanations
+--------------------------------------------------------------------------------
+   2-  4  I3     K       Temp     [10/140] Temperature
+   8- 15  F8.3   cm-1    nu       [50/4000] Frequency
+  23- 29  F7.3   %       T        Percentage of transmission
+--------------------------------------------------------------------------------
+
+Byte-by-byte Description of file: table?.dat table1[023456789].dat
+--------------------------------------------------------------------------------
+   Bytes Format  Units   Label    Explanations
+--------------------------------------------------------------------------------
+   2-  4  I3     K       Temp     [10/140] Temperature
+   7- 14  F8.3   cm-1    nu       [50/4000] Frequency
+  16- 24  F9.7   ---     n        Real part of the index of refraction (1)
+  25- 35  E11.8  ---     k        ? Imaginary part of the index of refraction
+--------------------------------------------------------------------------------
+Note (1): The index of refraction is the complex number n + ik
+--------------------------------------------------------------------------------
+
+Byte-by-byte Description of file: table11.dat
+--------------------------------------------------------------------------------
+   Bytes Format  Units   Label    Explanations
+--------------------------------------------------------------------------------
+   1-  3  I3     K       Temp     [10/140] Temperature
+   5- 12  F8.3   cm-1    nu1      [50/4000] Frequency nu1
+  18- 24  F7.5   ---     n(nu1)   Real part of the index of refraction for
+                                   frequency nu1 (1)
+  27- 34  F8.3   cm-1    nu2      ? [50/4000] Frequency nu2
+  35- 45  E11.5  ---     k(nu2)   ? Imaginary part of the index of refraction
+                                    for frequency nu2
+--------------------------------------------------------------------------------
+Note (1): The index of refraction is the complex number n + ik
+--------------------------------------------------------------------------------
+
+History:
+  * 16-Sep-1994: Created from AAS CD-ROM#1
+  * 08-Oct-2011: ReadMe revisited, added file "summary.dat"
+================================================================================
+(End)     Patricia Bauer, Francois Ochsenbein [CDS]                  16-Sep-1994

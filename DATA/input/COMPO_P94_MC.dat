@@ -1,0 +1,8 @@
+! File to summarize composition
+! # name	  refr_index_table_name volume_fraction	rule(mix/add) Mdust/MH
+1 silicates olivine_PC94 0.135 mix MRN_S03 1.0 5.0E-03 5.0
+2 iron Fe_PC94 0.006 mix MRN_S03 1.0 5.0E-03 5.0
+3 silicates pyro_PC94 0.04 mix MRN_S03 1.0 5.0E-03 5.0
+4 iron_sulfides FeS_PC94 0.022 mix MRN_S03 1.0 5.0E-03 5.0
+5 carbonaceous CHON_PC94 0.554 mix MRN_S03 1.0 5.0E-03 5.0
+6 ices Water_ice_PC94 0.243 mix MRN_S03 1.0 5.0E-03 5.0

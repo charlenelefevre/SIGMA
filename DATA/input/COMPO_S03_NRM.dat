@@ -1,0 +1,8 @@
+! File to summarize composition
+! # name	  refr_index_table_name volume_fraction	rule(mix/add) Mdust/MH
+1 silicates Mg70Fe30_2_SiO4_Henning 0.075 mix MRN_S03 1.0 5.0E-03 5.0
+2 iron Fe_Henning 0.002 mix MRN_S03 1.0 5.0E-03 5.0
+3 silicates Mg70Fe30SiO3_Henning 0.022 mix MRN_S03 1.0 5.0E-03 5.0
+4 iron_sulfides FeS_Henning 0.015 mix MRN_S03 1.0 5.0E-03 5.0
+5 carbonaceous CHON_Henning 0.291 mix MRN_S03 1.0 5.0E-03 5.0
+6 ices Water_ice_Henning 0.595 mix MRN_S03 1.0 5.0E-03 5.0
