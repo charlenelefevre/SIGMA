@@ -444,8 +444,8 @@ SUBROUTINE WriteOutput (particlefile,nwav,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p,are
 	OPEN(unit=30,file=crtfile,RECL=10000)
 !*****Header's*****
 	WRITE(UNIT=30,FMT='(a)') "eqdust" ! keyword in CRT dust file could be eqdust or simple
-	WRITE(UNIT=30,FMT='(E11.5)') 1.0e-7_dp ! N(H) weighted by respective abundance of each type of grain compare to other types
-	WRITE(UNIT=30,FMT='(E11.5)') 1.0e-4_dp !CRT file need an arbitrary local size (a)
+	WRITE(UNIT=30,FMT='(E15.3)') 1.0e-7_dp ! N(H) weighted by respective abundance of each type of grain compare to other types
+	WRITE(UNIT=30,FMT='(E15.3)') 1.0e-4_dp !CRT file need an arbitrary local size (a)
 	WRITE(UNIT=30,FMT='(1i8)') nwav ! number of frequencies
 	WRITE(UNIT=30,FMT='(a)') "#"
 !*****Header's end*****
