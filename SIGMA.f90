@@ -99,31 +99,31 @@ REAL (KIND=dp), ALLOCATABLE     :: Kext_tot(:)                ! extinction coeff
 REAL (KIND=dp), ALLOCATABLE     :: g_tot(:)
 REAL (KIND=dp)                  :: Mtot
 
-REAL (KIND=dp)                  :: A_ref                      ! reference wavelength for normalization
+REAL (KIND=dp)                  :: lambda_ref                      ! reference wavelength for normalization
 
 ! ------------------------------------------------------------------------
-! Default parameters - to be changed
+! Default parameters - may be updated by users - to be moved to an external file?
 ! ------------------------------------------------------------------------
-verbose   = .false.
-norm      = .true.
-crt       = .false.
-hyperion  = .true.
-apow      =  3.50_dp
+verbose        = .false.
+norm           = .true.
+crt            = .false.
+hyperion       = .false.
+apow           =  3.50_dp
 
-fmax      =  0.0_dp
-porosity  =  0.0_dp
+fmax           =  0.0_dp
+porosity       =  0.0_dp
 
-vices     =  0.0_dp !by default no ice mantles
+vices          =  0.0_dp !by default no ice mantles
 
-na        =  50
-nlam      =  1000
-lam1      =  0.05_dp
-lam2      =  1000.0_dp
-nm        =  3 !by default mixture of silicates, carbonaceous and iron sulfide
-n_add     =  0
-n_mix     =  0
-particlefile="opacities"
-A_ref     =  2.20 !by default K band is used
+na             =  50
+nlam           =  1000
+lam1           =  0.05_dp
+lam2           =  1000.0_dp
+nm             =  3 !by default mixture of silicates, carbonaceous and iron sulfide
+n_add          =  0
+n_mix          =  0
+particlefile   = "opacities"
+lambda_ref     =  2.20 !by default K band is used
 
 ! ------------------------------------------------------------------------
 ! Input parameters
@@ -164,43 +164,110 @@ DO while(tmp.ne.' ')
 			i = i+1
 			CALL getarg(i,value)
 			READ(value,*) fmax
+		CASE('-lambdlambda_ref')
+			i = i+1
+			CALL getarg(i,value)
+			READ(value,*) lambda_ref
 		CASE('-file','-filename')
 			i = i+1
 			CALL getarg(i,particlefile)
 		CASE('-lref')
 			i = i+1
 			CALL getarg(i,value)
-			READ(value,*) A_ref
+			READ(value,*) lambda_ref
 		CASE('-v','-verbose')
 			verbose = .true.
 		CASE('-non_norm_ice')
 			norm = .false.
 		CASE('--help','-help','help')
 			WRITE(*,'(" ")')
-			WRITE(*,'("                      SIGMA HELP                      ")')
-			WRITE(*,'("         AVAILABLE OPTIONS ARE THE FOLLOWING:         ")')
+			WRITE(*,'("			SIGMA FEB-19 HELP			")')
+			WRITE(*,'("		AVAILABLE OPTIONS ARE THE FOLLOWING:			")')
 			WRITE(*,'(" ")')
-			WRITE(*,'("========================================================")')
-			WRITE(*,'("Size distribution:")')
-			WRITE(*,'("========================================================")')
-			WRITE(*,'(" ")')
-			WRITE(*,'("========================================================")')
-			WRITE(*,'("Dust Shape:")')
-			WRITE(*,'("========================================================")')
-			WRITE(*,'("-fmax = volume fraction of vacuum for hollow spheres DHS")')
-			WRITE(*,'("-porosity = porosity of the aggregate")')
-			WRITE(*,'(" ")')
-			WRITE(*,'("========================================================")')
-			WRITE(*,'("Dust Composition:")')
-			WRITE(*,'("========================================================")')
-			WRITE(*,'("========================================================")')
-			WRITE(*,'("Other parameters:")')
-			WRITE(*,'("========================================================")')
-			WRITE(*,'("-lmin = lambda min")')
-			WRITE(*,'("-lmax = lambda max")')
-			WRITE(*,'("-na = number of size bins")')
-			WRITE(*,'("-nlam = number of wavelength bins")')
-			WRITE(*,'("-file or -filename = output filename")')
+			WRITE(*,'("	========================================================")')
+			WRITE(*,'("	Dust Composition:")')
+			WRITE(*,'("	========================================================")')
+			WRITE(*,'("	-nm = number of dust components apart from vacuum")')
+			WRITE(*,'("")')
+			WRITE(*,'("	Set according to DATA/input/COMPO.dat")')
+			WRITE(*,'("	Examples of composition are provided in DATA/input folder")')
+			WRITE(*,'("")')
+			WRITE(*,'("	The different components could be mixed or added")')
+			WRITE(*,'("	Individual components refractive index tables are located in DATA in the following subdirectories:")')
+			WRITE(*,'("	* carbonaceous")')
+			WRITE(*,'("	* silicates")')
+			WRITE(*,'("	* iron")')
+			WRITE(*,'("	* iron_sulfides")')
+			WRITE(*,'("	* iron")')
+			WRITE(*,'("	* ices")')
+			WRITE(*,'("")')
+			WRITE(*,'("	!!!! WARNING: FOR THE TIME BEING ICES MUST BE DEFINED AS THE LAST COMPONENT in DATA/input/COMPO.dat !!!!")')
+			WRITE(*,'("")')
+			WRITE(*,'("	========================================================")')
+			WRITE(*,'("	Size distribution:")')
+			WRITE(*,'("	========================================================")')
+			WRITE(*,'("	Set individually for each component according to DATA/input/COMPO.dat")')
+			WRITE(*,'("	Should be identical for mixture (mix) while it could be different for added opacities (add)")')
+			WRITE(*,'("	Either power law (plaw) or custom size distribution can be used:")')
+			WRITE(*,'("	Custom size distribution are taken from DATA/sizedistrib folder")')
+			WRITE(*,'("	Filename without extension should be provided in DATA/input/COMPO.dat")')
+			WRITE(*,'("	File content is a(microns), n(a)*a, porosity(see below)")')
+			WRITE(*,'("")')
+			WRITE(*,'("	Other parameters:")')
+			WRITE(*,'("	-apow = will be used only if power law")')
+			WRITE(*,'("	-na = number of bin sizes")')
+			WRITE(*,'("")')
+			WRITE(*,'("	========================================================")')
+			WRITE(*,'("	Dust Shape:")')
+			WRITE(*,'("	========================================================")')
+			WRITE(*,'("	-fmax = volume fraction of vacuum for hollow spheres (DHS)")')
+			WRITE(*,'("	-porosity = constant porosity if plaw or if -1 is set in size distribution file")')
+			WRITE(*,'("	Otherwise porosity can be defined as a function of size in size distribution file.")')
+			WRITE(*,'("")')
+			WRITE(*,'("	========================================================")')
+			WRITE(*,'("	Other parameters:")')
+			WRITE(*,'("	========================================================")')
+			WRITE(*,'("	-lmin = lambda min")')
+			WRITE(*,'("	-lmax = lambda max")')
+			WRITE(*,'("	-nlam = number of wavelength bins")')
+			WRITE(*,'("	-lambdlambda_ref = wavelength in micron to normalize extinction, by default 2.2")')
+			WRITE(*,'("	-file or -filename = output filename, by default opacities")')
+			WRITE(*,'("	-v = verbose")')
+			WRITE(*,'("")')
+			WRITE(*,'("	========================================================")')
+			WRITE(*,'("	Default parameters :")')
+			WRITE(*,'("	========================================================")')
+			WRITE(*,'("")')
+			WRITE(*,'("	You may find default parameters inside the code itself (in SIGMA.f90).")')
+			WRITE(*,'("	You can update them to your needs in particular the following ones:")')
+			WRITE(*,'("")')
+			WRITE(*,'("	verbose   = .false.")')
+			WRITE(*,'("	crt       = .true.")')
+			WRITE(*,'("	hyperion  = .true.")')
+			WRITE(*,'("")')
+			WRITE(*,'("	========================================================")')
+			WRITE(*,'("	Outputs:")')
+			WRITE(*,'("	========================================================")')
+			WRITE(*,'("	By default output files are written in output folder.")')
+			WRITE(*,'("	They will be overwritten if a different filename is not given as an argument.")')
+			WRITE(*,'("")')
+			WRITE(*,'("	SIGMA provides the following outputs:")')
+			WRITE(*,'("")')
+			WRITE(*,'("	* filename.dat = ASCII file that contains main outputs:")')
+			WRITE(*,'("	lambda[micron]   Kabs[cm^2/g]   Ksca[cm^2/g]  Kext[cm^2/g]    albedo    asymmetry_parameter  linear_pol")')
+			WRITE(*,'("")')
+			WRITE(*,'("	* Kext_opacities.dat = extinction normalized by default by K band")')
+			WRITE(*,'("")')
+			WRITE(*,'("	OUTPUT RELATED TO SPECIFIC RADIATIVE TRANSFER CODES:")')
+			WRITE(*,'("")')
+			WRITE(*,'("	1) CRT (Juvela et al.):")')
+			WRITE(*,'("	* CRT_opacities.nH2.dust")')
+			WRITE(*,'("	* CRT_DSC_opacities.dat")')
+			WRITE(*,'("")')
+			WRITE(*,'("	2) HYPERION (Robitaille et al.):")')
+			WRITE(*,'("	* HYPERION_set_filename.py")')
+			WRITE(*,'("	Contains the full parameters needed to build hdf5 dust model that can be directly used by HYPERION")')
+			WRITE(*,'("	It includes computation of Rosseland and Planck mean extinctions")')
 			STOP
 		CASE default
 			WRITE(*,'("Option not recognized! SIGMA -help to list all available options.")')
@@ -368,7 +435,7 @@ DO ilam = 1,nlam
 ENDDO
 
 
-CALL WriteOutput(particlefile,nlam,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p, A_ref)
+CALL WriteOutput(particlefile,nlam,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p, lambda_ref)
 
 
 IF (verbose) WRITE(*,'("========================================================")')
@@ -400,9 +467,9 @@ SUBROUTINE WriteOutput (particlefile,nwav,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p,are
 
 
 	tablefile    = "output/" // trim(particlefile) // ".dat"
-	crtfile      = "output/" // trim(particlefile) // ".nH2.dust"
-	dscfile      = "output/DSC_"// trim(particlefile) // ".dat"
-	hyperionfile = "output/set_"//trim(particlefile)//".py"
+	crtfile      = "output/CRT_" // trim(particlefile) // ".nH2.dust"
+	dscfile      = "output/CRT_DSC_"// trim(particlefile) // ".dat"
+	hyperionfile = "output/HYPERION_set_"//trim(particlefile)//".py"
 	extinctfile  = "output/Kext_"// trim(particlefile) // ".dat"
 	dust_hyperionfile = "output/" // trim(particlefile)
 
@@ -441,192 +508,199 @@ SUBROUTINE WriteOutput (particlefile,nwav,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p,are
 		IF(verbose) write(*,'("Output file ",a," already exists, overwriting")') trim(crtfile)
 		CLOSE(unit=30,status='delete')
 	endif
-	OPEN(unit=30,file=crtfile,RECL=10000)
-!*****Header's*****
-	WRITE(UNIT=30,FMT='(a)') "eqdust" ! keyword in CRT dust file could be eqdust or simple
-	WRITE(UNIT=30,FMT='(E15.3)') 1.0e-7_dp ! N(H) weighted by respective abundance of each type of grain compare to other types
-	WRITE(UNIT=30,FMT='(E15.3)') 1.0e-4_dp !CRT file need an arbitrary local size (a)
-	WRITE(UNIT=30,FMT='(1i8)') nwav ! number of frequencies
-	WRITE(UNIT=30,FMT='(a)') "#"
-!*****Header's end*****
-	do ilam=nwav,1,-1
-		write(30,*) clight/lam(ilam),g_tot(ilam),Kabs_tot(ilam)/(pi*1e-15_dp*N_Avo),Ksca_tot(ilam)/(pi*1e-15_dp*N_Avo)
-	enddo
-	CLOSE(unit=30)
+	IF(crt) THEN
+		OPEN(unit=30,file=crtfile,RECL=10000)
+	!*****Header's*****
+		WRITE(UNIT=30,FMT='(a)') "eqdust" ! keyword in CRT dust file could be eqdust or simple
+		WRITE(UNIT=30,FMT='(E15.3)') 1.0e-7_dp ! N(H) weighted by respective abundance of each type of grain compare to other types
+		WRITE(UNIT=30,FMT='(E15.3)') 1.0e-4_dp !CRT file need an arbitrary local size (a)
+		WRITE(UNIT=30,FMT='(1i8)') nwav ! number of frequencies
+		WRITE(UNIT=30,FMT='(a)') "#"
+	!*****Header's end*****
+		do ilam=nwav,1,-1
+			write(30,*) clight/lam(ilam),g_tot(ilam),Kabs_tot(ilam)/(pi*1e-15_dp*N_Avo),Ksca_tot(ilam)/(pi*1e-15_dp*N_Avo)
+		enddo
+		CLOSE(unit=30)
+	ENDIF
 
-
-	inquire(file=dscfile,exist=truefalse)
-	if(truefalse.and.crt) then
-		OPEN(unit=40,file=dscfile)
-		IF(verbose) write(*,'("Output file ",a," already exists, overwriting")') trim(dscfile)
-		CLOSE(unit=40,status='delete')
-	endif
-	OPEN(unit=40,file=dscfile,RECL=100000)
-!*****Header's*****
-	write(40,'(I4)') nwav+1 !first colum is dedicated to angle number
-!*****Header's end*****
-	write(40,'(I4)',advance='no') -999
-  DO ilam = 1,nwav-1
-		write(40,'(E15.7)',advance="no") clight/lam(ilam)
-	END DO
-	write(40,'(E15.7)') clight/lam(nwav)
-	write(40,'(I4)',advance='no') -999
-	DO ilam = 1,nwav-1
-		write(40,'(E15.7)',advance="no") g_tot(ilam) !dummy values not used by CRT
-	END DO
-	write(40,'(E15.7)') g_tot(nwav)
-	! DO ilam = 1,nwav
-	! 	write(40,'(E15.7)',advance="no") 0.0_dp
-	! END DO
-	DO i = 1, 180
-			write(40,'(I3)',advance="no") i
+	IF(crt) THEN
+		inquire(file=dscfile,exist=truefalse)
+		if(truefalse.and.crt) then
+			OPEN(unit=40,file=dscfile)
+			IF(verbose) write(*,'("Output file ",a," already exists, overwriting")') trim(dscfile)
+			CLOSE(unit=40,status='delete')
+		endif
+		OPEN(unit=40,file=dscfile,RECL=100000)
+	!*****Header's*****
+		write(40,'(I4)') nwav+1 !first colum is dedicated to angle number
+	!*****Header's end*****
+		write(40,'(I4)',advance='no') -999
+	  DO ilam = 1,nwav-1
+			write(40,'(E15.7)',advance="no") clight/lam(ilam)
+		END DO
+		write(40,'(E15.7)') clight/lam(nwav)
+		write(40,'(I4)',advance='no') -999
 		DO ilam = 1,nwav-1
-			write(40,'(E15.7)',advance="no") p%F(ilam)%F11(i)
+			write(40,'(E15.7)',advance="no") g_tot(ilam) !dummy values not used by CRT
 		END DO
-		  write(40,'(E15.7)') p%F(nwav)%F11(i)
-	END DO
-	CLOSE(unit=40)
+		write(40,'(E15.7)') g_tot(nwav)
+		! DO ilam = 1,nwav
+		! 	write(40,'(E15.7)',advance="no") 0.0_dp
+		! END DO
+		DO i = 1, 180
+				write(40,'(I3)',advance="no") i
+			DO ilam = 1,nwav-1
+				write(40,'(E15.7)',advance="no") p%F(ilam)%F11(i)
+			END DO
+			  write(40,'(E15.7)') p%F(nwav)%F11(i)
+		END DO
+		CLOSE(unit=40)
+	ENDIF
 
-  ! Output files needed to set hyperion dust model (Robitaille et al.)
-	inquire(file=hyperionfile,exist=truefalse)
-	if(truefalse.and.hyperion) then
-		OPEN(unit=45,file=hyperionfile)
-		IF(verbose) write(*,'("Output file ",a," already exists, overwriting")') trim(hyperionfile)
-		CLOSE(unit=45,status='delete')
-	endif
-	OPEN(unit=45,file=hyperionfile,RECL=10000000)
-	WRITE(UNIT=45,FMT='(a)') "import os"
-	WRITE(UNIT=45,FMT='(a)') "from hyperion.dust import SphericalDust"
-	WRITE(UNIT=45,FMT='(a)') "from numpy import *"
-	WRITE(UNIT=45,FMT='(a)') "d = SphericalDust()"
+	IF (hyperion) then
+	  ! Output files needed to set hyperion dust model (Robitaille et al.)
+		inquire(file=hyperionfile,exist=truefalse)
+		if(truefalse.and.hyperion) then
+			OPEN(unit=45,file=hyperionfile)
+			IF(verbose) write(*,'("Output file ",a," already exists, overwriting")') trim(hyperionfile)
+			CLOSE(unit=45,status='delete')
+		endif
+		OPEN(unit=45,file=hyperionfile,RECL=10000000)
+		WRITE(UNIT=45,FMT='(a)') "import os"
+		WRITE(UNIT=45,FMT='(a)') "from hyperion.dust import SphericalDust"
+		WRITE(UNIT=45,FMT='(a)') "from numpy import *"
+		WRITE(UNIT=45,FMT='(a)') "d = SphericalDust()"
 
-	!***** frequencies *****
-	write(45,FMT='(a)',advance="no") "d.optical_properties.nu = ["
-	DO ilam = nwav,2,-1
-		write(45,'(E15.7)',advance="no") clight/lam(ilam)
-		write(45,FMT='(a)',advance="no") ","
-	END DO
-	write(45,'(E15.7)',advance="no") clight/lam(1)
-	write(45,'(a)') "]"
-
-	!***** albedo *****
-	write(45,FMT='(a)',advance="no") "d.optical_properties.albedo = ["
-	DO ilam = nwav,2,-1
-		write(45,'(E15.7)',advance="no") Ksca_tot(ilam)/Kext_tot(ilam)
-		write(45,FMT='(a)',advance="no") ","
-	END DO
-	write(45,'(E15.7)',advance="no") Ksca_tot(ilam)/Kext_tot(1)
-	write(45,'(a)') "]"
-
-	!***** extinction *****
-	write(45,FMT='(a)',advance="no") "d.optical_properties.chi = ["
-	DO ilam = nwav,2,-1
-		write(45,'(E15.7)',advance="no") Kext_tot(ilam)
-		write(45,FMT='(a)',advance="no") ","
-	END DO
-	write(45,'(E15.7)',advance="no") Kext_tot(1)
-	write(45,'(a)') "]"
-
-	!***** scattering angle *****
-	write(45,FMT='(a)',advance="no") "d.optical_properties.mu = ["
-	DO i = 180, 2, -1
-		write(45,FMT='(a)',advance="no") "cos("
-		write(45,'(I3)',advance="no") i
-		write(45,FMT='(a)',advance="no") "*pi/180.)"
-		write(45,FMT='(a)',advance="no") ","
-	END DO
-	write(45,FMT='(a)',advance="no") "cos(1*pi/180.)"
-	write(45,'(a)') "]"
-
-	!***** scattering matrix *****
-	!convention of Code & Whitney (1995):
-	! P1 (equivalent to S11), P2 (equivalent to S12), P3 (equivalent to S44), and P4 (equivalent to -S34).
-	!Each of these variables should be specified as a 2-d array with dimensions (n_nu, n_mu),
-	!where n_nu is the number of frequencies, and n_mu is the number of values of the cosine of the scattering angle
-	write(45,FMT='(a)') "d.optical_properties.initialize_scattering_matrix()"
-
-	DO i = 180, 2, -1
-		write(45,FMT='(a)',advance="no") "d.optical_properties.P1[:,"
-		write(45,'(I3)',advance="no") i-1
-		write(45,FMT='(a)',advance="no") "] = ["
+		!***** frequencies *****
+		write(45,FMT='(a)',advance="no") "d.optical_properties.nu = ["
 		DO ilam = nwav,2,-1
-			write(45,'(E15.7)',advance="no") p%F(ilam)%F11(i)
+			write(45,'(E15.7)',advance="no") clight/lam(ilam)
 			write(45,FMT='(a)',advance="no") ","
 		END DO
-			write(45,'(E15.7)') p%F(1)%F11(i)
-			write(45,'(a)') "]"
-	END DO
+		write(45,'(E15.7)',advance="no") clight/lam(1)
+		write(45,'(a)') "]"
 
-	DO i = 180, 2, -1
-		write(45,FMT='(a)',advance="no") "d.optical_properties.P2[:,"
-		write(45,'(I3)',advance="no") i-1
-		write(45,FMT='(a)',advance="no") "] = ["
+		!***** albedo *****
+		write(45,FMT='(a)',advance="no") "d.optical_properties.albedo = ["
 		DO ilam = nwav,2,-1
-			write(45,'(E15.7)',advance="no") p%F(ilam)%F12(i)
+			write(45,'(E15.7)',advance="no") Ksca_tot(ilam)/Kext_tot(ilam)
 			write(45,FMT='(a)',advance="no") ","
 		END DO
-			write(45,'(E15.7)') p%F(1)%F12(i)
-			write(45,'(a)') "]"
-	END DO
+		write(45,'(E15.7)',advance="no") Ksca_tot(ilam)/Kext_tot(1)
+		write(45,'(a)') "]"
 
-	DO i = 180, 2, -1
-		write(45,FMT='(a)',advance="no") "d.optical_properties.P3[:,"
-		write(45,'(I3)',advance="no") i-1
-		write(45,FMT='(a)',advance="no") "] = ["
+		!***** extinction *****
+		write(45,FMT='(a)',advance="no") "d.optical_properties.chi = ["
 		DO ilam = nwav,2,-1
-			write(45,'(E15.7)',advance="no") p%F(ilam)%F44(i)
+			write(45,'(E15.7)',advance="no") Kext_tot(ilam)
 			write(45,FMT='(a)',advance="no") ","
 		END DO
-			write(45,'(E15.7)') p%F(1)%F44(i)
-			write(45,'(a)') "]"
-	END DO
+		write(45,'(E15.7)',advance="no") Kext_tot(1)
+		write(45,'(a)') "]"
 
-	DO i = 180, 2, -1
-		write(45,FMT='(a)',advance="no") "d.optical_properties.P4[:,"
-		write(45,'(I3)',advance="no") i-1
-		write(45,FMT='(a)',advance="no") "] = ["
-		DO ilam = nwav,2,-1
-			write(45,'(E15.7)',advance="no") -p%F(ilam)%F34(i)
+		!***** scattering angle *****
+		write(45,FMT='(a)',advance="no") "d.optical_properties.mu = ["
+		DO i = 180, 2, -1
+			write(45,FMT='(a)',advance="no") "cos("
+			write(45,'(I3)',advance="no") i
+			write(45,FMT='(a)',advance="no") "*pi/180.)"
 			write(45,FMT='(a)',advance="no") ","
 		END DO
-			write(45,'(E15.7)') p%F(1)%F34(i)
-			write(45,'(a)') "]"
-	END DO
+		write(45,FMT='(a)',advance="no") "cos(1*pi/180.)"
+		write(45,'(a)') "]"
 
-	!***** set emissivities to compute Rosseland and Planck *****
-	! extrapolation needed:
-	! the frequency range should extend almost three orders of magnitude above the peak frequency for the coldest temperature
-	! and one order of magnitude below the peak frequency for the hottest temperature.
-  write(45,'(a)') "d.optical_properties.extrapolate_nu(1.e1, 1.e20)"
-	write(45,'(a)') "d.set_lte_emissivities(n_temp=1000,temp_min=10,temp_max=100000.)"
+		!***** scattering matrix *****
+		!convention of Code & Whitney (1995):
+		! P1 (equivalent to S11), P2 (equivalent to S12), P3 (equivalent to S44), and P4 (equivalent to -S34).
+		!Each of these variables should be specified as a 2-d array with dimensions (n_nu, n_mu),
+		!where n_nu is the number of frequencies, and n_mu is the number of values of the cosine of the scattering angle
+		write(45,FMT='(a)') "d.optical_properties.initialize_scattering_matrix()"
 
-	!***** set hdf5 dust model *****
-	write(45,'(a)') "d.write('"//trim(dust_hyperionfile)//".hdf5')"
-  !***** plot dust model *****
-	write(45,'(a)') "d.plot('"//trim(dust_hyperionfile)//".png')"
-	write(45,'(a)') "os.system('csh make_rosseland.csh "//trim(dust_hyperionfile)//"')"
-	CLOSE(unit=45)
+		DO i = 180, 2, -1
+			write(45,FMT='(a)',advance="no") "d.optical_properties.P1[:,"
+			write(45,'(I3)',advance="no") i-1
+			write(45,FMT='(a)',advance="no") "] = ["
+			DO ilam = nwav,2,-1
+				write(45,'(E15.7)',advance="no") p%F(ilam)%F11(i)
+				write(45,FMT='(a)',advance="no") ","
+			END DO
+				write(45,'(E15.7)') p%F(1)%F11(i)
+				write(45,'(a)') "]"
+		END DO
 
-	inquire(file=extinctfile,exist=truefalse)
-	if(truefalse) then
-		OPEN(unit=50,file=extinctfile)
-		IF(verbose) write(*,'("Output file ",a," already exists, overwriting")') trim(extinctfile)
-		CLOSE(unit=50,status='delete')
-	endif
+		DO i = 180, 2, -1
+			write(45,FMT='(a)',advance="no") "d.optical_properties.P2[:,"
+			write(45,'(I3)',advance="no") i-1
+			write(45,FMT='(a)',advance="no") "] = ["
+			DO ilam = nwav,2,-1
+				write(45,'(E15.7)',advance="no") p%F(ilam)%F12(i)
+				write(45,FMT='(a)',advance="no") ","
+			END DO
+				write(45,'(E15.7)') p%F(1)%F12(i)
+				write(45,'(a)') "]"
+		END DO
 
-	DO i=1,nwav
-		IF (lam(i)>aref-0.05_dp.and.lam(i)<aref+0.05_dp) then
-			Kext_ref = Kext_tot(i)
-			exit
-		ENDIF
-  ENDDO
-	Kext_tot = Kext_tot/Kext_ref
+		DO i = 180, 2, -1
+			write(45,FMT='(a)',advance="no") "d.optical_properties.P3[:,"
+			write(45,'(I3)',advance="no") i-1
+			write(45,FMT='(a)',advance="no") "] = ["
+			DO ilam = nwav,2,-1
+				write(45,'(E15.7)',advance="no") p%F(ilam)%F44(i)
+				write(45,FMT='(a)',advance="no") ","
+			END DO
+				write(45,'(E15.7)') p%F(1)%F44(i)
+				write(45,'(a)') "]"
+		END DO
 
-  OPEN(unit=50,file=extinctfile,RECL=100000)
-	 do ilam=1,nwav
- 		write(50,*) lam(ilam),Kext_tot(ilam)
- 	enddo
- 	CLOSE(unit=50)
+		DO i = 180, 2, -1
+			write(45,FMT='(a)',advance="no") "d.optical_properties.P4[:,"
+			write(45,'(I3)',advance="no") i-1
+			write(45,FMT='(a)',advance="no") "] = ["
+			DO ilam = nwav,2,-1
+				write(45,'(E15.7)',advance="no") -p%F(ilam)%F34(i)
+				write(45,FMT='(a)',advance="no") ","
+			END DO
+				write(45,'(E15.7)') p%F(1)%F34(i)
+				write(45,'(a)') "]"
+		END DO
+
+		!***** set emissivities to compute Rosseland and Planck *****
+		! extrapolation needed:
+		! the frequency range should extend almost three orders of magnitude above the peak frequency for the coldest temperature
+		! and one order of magnitude below the peak frequency for the hottest temperature.
+	  write(45,'(a)') "d.optical_properties.extrapolate_nu(1.e1, 1.e20)"
+		write(45,'(a)') "d.set_lte_emissivities(n_temp=1000,temp_min=10,temp_max=100000.)"
+
+		!***** set hdf5 dust model *****
+		write(45,'(a)') "d.write('"//trim(dust_hyperionfile)//".hdf5')"
+	  !***** plot dust model *****
+		write(45,'(a)') "d.plot('"//trim(dust_hyperionfile)//".png')"
+		write(45,'(a)') "os.system('csh make_rosseland.csh "//trim(dust_hyperionfile)//"')"
+		CLOSE(unit=45)
+	ENDIF
+
+		inquire(file=extinctfile,exist=truefalse)
+		if(truefalse) then
+			OPEN(unit=50,file=extinctfile)
+			IF(verbose) write(*,'("Output file ",a," already exists, overwriting")') trim(extinctfile)
+			CLOSE(unit=50,status='delete')
+		endif
+
+		DO i=1,nwav
+			IF (lam(i)>aref-0.05_dp.and.lam(i)<aref+0.05_dp) then
+				Kext_ref = Kext_tot(i)
+				exit
+			ENDIF
+	  ENDDO
+		Kext_tot = Kext_tot/Kext_ref
+
+	  OPEN(unit=50,file=extinctfile,RECL=100000)
+		 do ilam=1,nwav
+	 		write(50,*) lam(ilam),Kext_tot(ilam)
+	 	enddo
+	 	CLOSE(unit=50)
+
+
 
 END
 
@@ -937,17 +1011,17 @@ enddo
 
 ! Record size distribution as an output file to check
 
-	OPEN(unit=50,file="output/sizedis.dat",RECL=10000)
+	! OPEN(unit=50,file="output/sizedis.dat",RECL=10000)
 
-	index_WD = 7 ! 7 = 3.1A, 22=4.4A, 16 = 5.5A, 25 = 5.5B
-	index_type = 1 ! 1 = silicates, 2 = carbonaceous
-	DO k=1,ns
+	! index_WD = 7 ! 7 = 3.1A, 22=4.4A, 16 = 5.5A, 25 = 5.5B
+	! index_type = 1 ! 1 = silicates, 2 = carbonaceous
+	! DO k=1,ns
 		! a = r(k)*1.0e-4_dp
 		! CALL GRAIN_DIST_WD01(index_WD,index_type,a,da) !Rv = 5.5B
 		! WRITE(50,*) a*1.0e4_dp, da
-		WRITE(50,*) r(k), nr(1,k)
-	ENDDO
-	CLOSE(unit=50)
+		! WRITE(50,*) r(k), nr(1,k)
+	! ENDDO
+	! CLOSE(unit=50)
 
 
 	DO i = 1,nm
