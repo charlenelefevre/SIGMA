@@ -883,7 +883,7 @@ END
 
 		COMPLEX (KIND=dp), ALLOCATABLE    :: epsj(:)
 		COMPLEX (KIND=dp)                 :: m
-		COMPLEX (KIND=dp)                 :: meff
+		COMPLEX (KIND=dp)                 :: eps_eff
 		COMPLEX (KIND=dp)                 :: min
 		COMPLEX (KIND=dp)                 :: mav
 		COMPLEX (KIND=dp)                 :: alpha
@@ -1095,14 +1095,14 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 			endif
 		do i=1,nlam
 			do j=1,nm
-				epsj(j)=cdsqrt((dcmplx(e1(j,i,k),e2(j,i,k))))
+				epsj(j)=((dcmplx(e1(j,i,k),e2(j,i,k))))**2
 			end do
 			IF (nm.eq.2.and.porosity.le.0) then
 				continue
 			ELSE
-				call brugg(frac,nm,epsj, meff)
-				e1(1,i,k)=abs(dreal(meff**2))
-				e2(1,i,k)=abs(dimag(meff**2))
+				call brugg(frac,nm,epsj, eps_eff)
+				e1(1,i,k)=dreal(cdsqrt(eps_eff))
+				e2(1,i,k)=dimag(cdsqrt(eps_eff))
 			ENDIF
 			enddo
 		enddo
@@ -1123,14 +1123,14 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 			endif
 		do i=1,nlam
 			do j=1,nm
-				epsj(j)=cdsqrt((dcmplx(e1(j,i,k),e2(j,i,k))))
+				epsj(j)=((dcmplx(e1(j,i,k),e2(j,i,k))))**2
 			end do
 			IF (nm.eq.2.and.porosity.le.0) then
 				continue
 			ELSE
-				call brugg(frac,nm,epsj, meff)
-				e1blend=abs(dreal(meff**2))
-				e2blend=abs(dimag(meff**2))
+				call brugg(frac,nm,epsj, eps_eff)
+				e1blend=dreal(cdsqrt(eps_eff))
+				e2blend=dimag(cdsqrt(eps_eff))
 			ENDIF
 			call maxgarn_2compo(e1blend,e2blend,e1ice(i),e2ice(i),vices,e1blend_ice,e2blend_ice)
 			e1(1,i,k)=e1blend_ice
