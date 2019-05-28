@@ -1,10 +1,26 @@
 # SIGMA
-Simple Icy Grain Model for Aggreagtes
+Simple Icy Grain Model for Aggregates
+
+SIGMA is a new flexible tool, inherited from DIANA opacity code (Woitke et al. 2016, Min et al. 2016), to compute dust properties of aggregates made of a mixture of distinct materials, including vacuum and ice mantles. Our goal was to deliver a code able to reproduce classic models from the literature on a very fast computation time, but also to deviate from them. Hence, SIGMA is freely available to the community.
+
+We rely on effective medium theory to compute effective refractive index and Mie theory applied to a distribution of hollow spheres to mimic non–spherical dust shapes. This method successfully reproduces exact results of other methods (like discrete dipole approximation) when selecting carefully the parameters related to dust shape. The core of dust grains is built using Bruggeman rule, while ice mantles are added as surrounding material thanks to Maxwell-Garnett rule.
+
+A related paper was submitted to Astronomy & Astrophysics journal.
+The reference will be updated in GitHub once accepted.
+
+If your work makes use of SIGMA or any modified version derived from SIGMA, please cite the following publications :
+Lefèvre, C., Min, M., Pagani, P., et al. 2019, A&A, SIGMA: Simple Icy Grain Model for Aggregates (reference in latest update in GitHub)
+Woitke, P., Min, M., Pinte, C., et al. 2016, A&A, 586, A103, Consistent dust and gas models for protoplanetary disks. I. Disk shape, dust settling, opacities, and PAHs
+Min, M., Rab, C., Woitke, P., Dominik, C., & Ménard, F. 2016, A&A, 585, A13, Multiwavelength optical properties of compact dust aggregates in protoplanetary disks
+
+
+-------------------------------------------------------------
 
 INSTALL SIGMA:
 
 -------------------------------------------------------------
 SIGMA is available via git. It can eiter be downloaded from the website directly or with git. 
+
 git clone https://github.com/charlenelefevre/SIGMA.git
 
 Please try to update it on a regular basis with:
