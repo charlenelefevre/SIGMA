@@ -7,6 +7,9 @@ REAL (KIND=dp), PUBLIC, PARAMETER :: clight  = 2.99792458e14_dp         ! Celeri
 REAL (KIND=dp), PUBLIC, PARAMETER :: N_Avo      = 6.0221e23_dp          ! Avogadro constant
 
 LOGICAL, PUBLIC                   :: verbose
+LOGICAL, PUBLIC                   :: geom
+REAL (KIND=dp)                    :: a0                                 ! monomer size
+REAL (KIND=dp)                    :: Df                                 ! monomer size
 LOGICAL, PUBLIC                   :: norm
 LOGICAL, PUBLIC                   :: crt
 LOGICAL, PUBLIC                   :: hyperion
@@ -36,6 +39,9 @@ TYPE PARTICLE
 	REAL (KIND=dp), ALLOCATABLE     :: Kabs(:)                ! absorption coefficient
 	REAL (KIND=dp), ALLOCATABLE     :: Ksca(:)                ! scattering coefficient
 	REAL (KIND=dp), ALLOCATABLE     :: Kext(:)                ! extinction coefficient
+	REAL (KIND=dp), ALLOCATABLE     :: qabs_size(:,:)         ! individual qabs by size
+	REAL (KIND=dp), ALLOCATABLE     :: qsca_size(:,:)         ! individual qsca by size
+	REAL (KIND=dp), ALLOCATABLE     :: r_size(:)              ! individual sizes
 	REAL (KIND=dp), ALLOCATABLE     :: g(:)                   ! asymmetry parameter Henyey Greenstein
 	REAL (KIND=dp), ALLOCATABLE     :: pol(:)                 ! average polarisation
 	TYPE(MUELLER),  ALLOCATABLE     :: F(:)
@@ -105,8 +111,12 @@ REAL (KIND=dp)                  :: lambda_ref                      ! reference w
 ! Default parameters - may be updated by users - to be moved to an external file?
 ! ------------------------------------------------------------------------
 verbose        = .false.
+geom           = .false.
+a0             =  0.2_dp !default value for Min et al.2016
+Df             =  3.0_dp !default value for Min et al.2016
+
 norm           = .true.
-crt            = .false.
+crt            = .true.
 hyperion       = .false.
 apow           =  3.50_dp
 
@@ -175,8 +185,18 @@ DO while(tmp.ne.' ')
 			i = i+1
 			CALL getarg(i,value)
 			READ(value,*) lambda_ref
+                CASE('-df')
+                        i = i+1
+                        CALL getarg(i,value)
+                        READ(value,*) Df
+                CASE('-a0')
+                        i = i+1
+                        CALL getarg(i,value)
+                        READ(value,*) a0
 		CASE('-v','-verbose')
 			verbose = .true.
+		CASE('-geom')
+			geom = .true.
 		CASE('-non_norm_ice')
 			norm = .false.
 		CASE('--help','-help','help')
@@ -295,6 +315,9 @@ ALLOCATE (lam(nlam))
 ALLOCATE (p%Kabs(nlam))
 ALLOCATE (p%Kext(nlam))
 ALLOCATE (p%Ksca(nlam))
+ALLOCATE (p%qsca_size(nlam,na))
+ALLOCATE (p%qabs_size(nlam,na))
+ALLOCATE (p%r_size(na))
 ALLOCATE (p%g(nlam))
 ALLOCATE (p%F(nlam))
 ALLOCATE (p%pol(nlam))
@@ -435,7 +458,7 @@ DO ilam = 1,nlam
 ENDDO
 
 
-CALL WriteOutput(particlefile,nlam,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p, lambda_ref)
+CALL WriteOutput(particlefile,nlam,na,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p, lambda_ref)
 
 
 IF (verbose) WRITE(*,'("========================================================")')
@@ -444,19 +467,23 @@ IF (verbose) WRITE(*,'("========================================================
 
 end
 
-SUBROUTINE WriteOutput (particlefile,nwav,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p,aref)
+SUBROUTINE WriteOutput (particlefile,nwav,ns,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p,aref)
   use Tools
 	IMPLICIT NONE
   TYPE(PARTICLE)                    :: p
 	CHARACTER (len=500)               :: particlefile           ! name of output
 	CHARACTER (len=500)               :: tablefile              ! name of output
+	CHARACTER (len=500)               :: ddsfile                 ! name of output for debris disks simulator (dds)
 	CHARACTER (len=500)               :: crtfile                ! name of output for CRT
 	CHARACTER (len=500)               :: dscfile                ! name of output for DSC file for CRT
 	CHARACTER (len=500)               :: extinctfile            ! name of output for normalized extinction
+	CHARACTER (len=500)               :: phasefunctionfile      ! name of output
+	CHARACTER (len=500)               :: lineardegpolfile      ! name of output
 	CHARACTER (len=500)               :: hyperionfile           ! name of output for hyperion python file
 	CHARACTER (len=500)               :: dust_hyperionfile       ! name of output for hyperion dust file
 	INTEGER                           :: nwav
-	INTEGER                           :: i, ilam
+	INTEGER                           :: ns
+	INTEGER                           :: i, ilam, k
 	REAL (KIND=dp)                    :: Kabs_tot(nwav)
 	REAL (KIND=dp)                    :: Ksca_tot(nwav)
 	REAL (KIND=dp)                    :: Kext_tot(nwav)
@@ -467,10 +494,13 @@ SUBROUTINE WriteOutput (particlefile,nwav,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p,are
 
 
 	tablefile    = "output/" // trim(particlefile) // ".dat"
+	ddsfile  = "output/dds_"// trim(particlefile) // ".dat"
 	crtfile      = "output/CRT_" // trim(particlefile) // ".nH2.dust"
 	dscfile      = "output/CRT_DSC_"// trim(particlefile) // ".dat"
 	hyperionfile = "output/HYPERION_set_"//trim(particlefile)//".py"
 	extinctfile  = "output/Kext_"// trim(particlefile) // ".dat"
+	phasefunctionfile  = "output/PF_"// trim(particlefile) // ".dat"
+	lineardegpolfile  = "output/LDP_"// trim(particlefile) // ".dat"
 	dust_hyperionfile = "output/" // trim(particlefile)
 
 
@@ -501,6 +531,40 @@ SUBROUTINE WriteOutput (particlefile,nwav,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p,are
 	enddo
 	CLOSE(unit=20)
 
+	inquire(file=ddsfile,exist=truefalse)
+	if(truefalse) then
+		OPEN(unit=25,file=ddsfile)
+		IF(verbose) write(*,'("Output file ",a," already exists, overwriting")') trim(ddsfile)
+		CLOSE(unit=25,status='delete')
+	endif
+	OPEN(unit=25,file=ddsfile,RECL=10000)
+	write(25,FMT='(a)') "#-------------------------------------------------------------------/"
+	write(25,FMT='(a)') "# Tabulated dust properties: Q_abs, Q_sca, Q_ext, Albedo"
+	write(25,FMT='(a)') "# as a function of wavelength for different dust grain radii"
+	write(25,FMT='(a)') "#"
+	write(25,FMT='(a)') "# ===> Please respect file formatting. Insert *no* comment lines!"
+	write(25,FMT='(a)') "#-------------------------------------------------------------------/"
+	write(25,FMT='(a,i4,a)') " 				", ns, "  # Number of different dust grain radii"
+	write(25,FMT='(a,i4,a)') " 				", nwav, "  # Number of wavelengths tabulated for each grain radius"
+	write(25,FMT='(a)') "#List of dust grain radii [micron], sorted monotonically"
+	do k=1,ns
+		write(25,FMT='(D15.3)') p%r_size(k)
+	enddo
+	write(25,FMT='(a)') "# List of wavelengths [micron], sorted monotonically"
+	do ilam=1,nwav
+		write(25,FMT='(D15.3)') lam(ilam)
+	enddo
+	do k=1,ns
+		write(25,FMT='(a,D15.3,a)') "# Dust grain radius =    ",p%r_size(k)," micron"
+		write(25,FMT='(a)') "# Q_abs           Q_sca             Q_ext           albedo"
+		write(25,FMT='(a)') "#"
+		do ilam=1,nwav
+				write(25,*) p%qabs_size(ilam,k),p%qsca_size(ilam,k), p%qabs_size(ilam,k)+p%qsca_size(ilam,k), &
+				& p%qsca_size(ilam,k)/(p%qabs_size(ilam,k)+p%qsca_size(ilam,k))
+		enddo
+	enddo
+	CLOSE(unit=25)
+
   ! Output files needed to set CRT dust model (Juvela et al.)
 	inquire(file=crtfile,exist=truefalse)
 	if(truefalse.and.crt) then
@@ -518,7 +582,7 @@ SUBROUTINE WriteOutput (particlefile,nwav,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p,are
 		WRITE(UNIT=30,FMT='(a)') "#"
 	!*****Header's end*****
 		do ilam=nwav,1,-1
-			write(30,*) clight/lam(ilam),g_tot(ilam),Kabs_tot(ilam)/(pi*1e-15_dp*N_Avo),Ksca_tot(ilam)/(pi*1e-15_dp*N_Avo)
+			write(30,*) clight/lam(ilam),g_tot(ilam),Kabs_tot(ilam)/(pi*1e-15_dp*N_Avo*100),Ksca_tot(ilam)/(pi*1e-15_dp*N_Avo*100)
 		enddo
 		CLOSE(unit=30)
 	ENDIF
@@ -701,7 +765,20 @@ SUBROUTINE WriteOutput (particlefile,nwav,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p,are
 	 	CLOSE(unit=50)
 
 
-
+		OPEN(unit=60,file=phasefunctionfile,RECL=100000)
+		IF(verbose) write(*,'("Output file ",a," already exists, overwriting")') trim(phasefunctionfile)
+		DO ilam = 1,nwav-1
+			write(60,'(E15.7)',advance="no") lam(ilam)
+		ENDDO
+		write(60,'(E15.7)') lam(nwav)
+		DO i = 1, 180
+				write(60,'(I3)',advance="no") i
+			DO ilam = 1,nwav-1
+				write(60,'(E15.7)',advance="no") p%F(ilam)%F11(i)
+			END DO
+				write(60,'(E15.7)') p%F(nwav)%F11(i)
+		END DO
+		CLOSE(unit=60)
 END
 
 !-----------------------------------------------------------------------
@@ -796,6 +873,7 @@ END
 		INTEGER                           :: nlines
 		INTEGER                           :: nf
 		INTEGER                           :: ns
+		INTEGER                           :: nmono
 		INTEGER                           :: ilam
 		INTEGER                           :: Err
 		INTEGER                           :: spheres
@@ -805,9 +883,17 @@ END
 		REAL (KIND=dp)                    :: cext
 		REAL (KIND=dp)                    :: csca
 		REAL (KIND=dp)                    :: cabs
+		REAL (KIND=dp)                    :: ksca_bis
+		REAL (KIND=dp)                    :: kabs_bis
+		REAL (KIND=dp)                    :: kabs_G
+		REAL (KIND=dp)                    :: G
+		REAL (KIND=dp)                    :: cabs_RGD
+		REAL (KIND=dp)                    :: cabs_mono
+		REAL (KIND=dp)                    :: cemie_mono
+		REAL (KIND=dp)                    :: csmie_mono
 		REAL (KIND=dp)                    :: QEXT
 		REAL (KIND=dp)                    :: QSCA
-		REAL (KIND=dp)                    :: QBS
+		REAL (KIND=dp)                    :: QABS
 		REAL (KIND=dp)                    :: GQSC
 		REAL (KIND=dp)                    :: totA
 
@@ -860,6 +946,7 @@ END
 		REAL (KIND=dp)                    :: Mass
 	  REAL (KIND=dp)                    :: Vol
 		REAL (KIND=dp)                    :: rho_av
+		REAL (KIND=dp)                    :: rho_avbis
 		REAL (KIND=dp)                    :: rho_ice
 		REAL (KIND=dp)                    :: rcore
 		REAL (KIND=dp)                    :: wvno
@@ -874,6 +961,8 @@ END
 		REAL (KIND=dp)                    :: e2av
 	  REAL (KIND=dp), ALLOCATABLE       :: e1(:,:,:)
 	  REAL (KIND=dp), ALLOCATABLE       :: e2(:,:,:)
+		REAL (KIND=dp), ALLOCATABLE       :: e1bis(:,:,:)
+		REAL (KIND=dp), ALLOCATABLE       :: e2bis(:,:,:)
 		REAL (KIND=dp), ALLOCATABLE       :: e1d(:)
 		REAL (KIND=dp), ALLOCATABLE       :: e2d(:)
 		REAL (KIND=dp), ALLOCATABLE       :: e1ice(:)
@@ -942,6 +1031,9 @@ END
 
 	allocate(e1(MAXMAT,nlam,ns))
 	allocate(e2(MAXMAT,nlam,ns))
+	allocate(e1bis(MAXMAT,nlam,ns)) !same but without porosity
+	allocate(e2bis(MAXMAT,nlam,ns)) !same but without porosity
+
 
 	nf=20
 	if(maxf.eq.0e0) nf=1
@@ -1036,6 +1128,8 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		do k=1,ns
 			e1(i,1:nlam,k)=e1d(1:nlam)
 			e2(i,1:nlam,k)=e2d(1:nlam)
+			e1bis(i,1:nlam,k)=e1d(1:nlam)
+			e2bis(i,1:nlam,k)=e2d(1:nlam)
 		enddo
 	end do
 	if (vices.gt.0.0d0) then
@@ -1100,9 +1194,24 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 			IF (nm.eq.2.and.porosity.le.0) then
 				continue
 			ELSE
+
+				if (nm.gt.2.and.porosity.gt.0.and.geom) then
+	        !same without porosity to compute geometrical cross section
+					!Minato (2006), Tazaki (2018)
+					call brugg(frac/(1.0_dp-porosity),nm-1,epsj,eps_eff)
+					e1bis(1,i,k)=dreal(cdsqrt(eps_eff))
+					e2bis(1,i,k)=dimag(cdsqrt(eps_eff))
+				else
+					e1bis(1,i,k)=e1(1,i,k)
+					e2bis(1,i,k)=e2(1,i,k)
+				endif
+
 				call brugg(frac,nm,epsj, eps_eff)
 				e1(1,i,k)=dreal(cdsqrt(eps_eff))
 				e2(1,i,k)=dimag(cdsqrt(eps_eff))
+
+
+
 			ENDIF
 			enddo
 		enddo
@@ -1140,19 +1249,28 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 	endif
 
 	rho_av=0.0_dp
+	rho_avbis=0.0_dp
 
 	do i=1,nm
 		if (norm) then
 			rho_av=rho_av+frac(i)*rho(i)
+			if (i.lt.nm) rho_avbis=rho_avbis+frac(i)/(1.0_dp-porosity)*rho(i)
 		ELSE
 			rho_av=rho_av+frac(i)*rho(i)*(1.0_dp-vices)
+			if (i.lt.nm) rho_avbis=rho_avbis+frac(i)/(1.0_dp-porosity)*rho(i)*(1.0_dp-vices)
 		endif
 	enddo
-	if(norm) rho_av = rho_av+vices*rho_ice !commented to reproduce Ossenkopf dust model
+	if(norm) THEN
+		rho_av = rho_av+vices*rho_ice !commented to reproduce Ossenkopf dust model
+		rho_avbis = rho_avbis+vices*rho_ice !commented to reproduce Ossenkopf dust model
+	endif
+	if (porosity.le.0) rho_avbis = rho_av
 	rho(1)=rho_av
+	rho(2)=rho_avbis
 	nm = 1
 	IF(verbose) THEN
 		write(*,'("Average bulk density = ",f8.3, " g/cm3")') rho_av
+		write(*,'("Average bulk density without porosity = ",f8.3, " g/cm3")') rho_avbis
 		write(*,'("========================================================")')
 	ENDIF
 
@@ -1185,12 +1303,14 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		call tellertje(ilam,nlam)
 		csca=0d0
 		cabs=0d0
+		ksca_bis=0d0
+		kabs_bis=0d0
 		cext=0d0
 		Mass=0d0
 		Vol=0d0
 
 		do i=1,n_ang/2
-			theta=(real(i)-0.5)/real(n_ang/2)*3.1415926536/2d0
+			theta=(real(i)-0.5)/real(n_ang/2)*pi/2d0
 			mu(i)=cos(theta)
 		enddo
 
@@ -1205,7 +1325,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 				do i=1,nf
 					rad=r1/(1d0-f(i))**(1d0/3d0)
 					m=dcmplx(e1(l,ilam,k),-e2(l,ilam,k)) !porosity added by CL
-					wvno=2d0*3.1415926536/lam(ilam)
+					wvno=2d0*pi/lam(ilam)
 
 				if(f(i).eq.0d0) then
 					spheres=1
@@ -1217,15 +1337,14 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 				endif
 				if(meth(1:3).eq.'DHS') then
 		                        rcore=rad*f(i)**(1d0/3d0)
-
 					call DMiLay(RCORE, rad, WVNO, m, min, MU, &
-		     &                   NA/2, QEXT, QSCA, QBS, GQSC, &
+		     &                   NA/2, QEXT, QSCA, QABS, GQSC, &
 		     &                   M1, M2, S21, D21, NA ,Err)
 		                else
 		                        rcore=rad*0.999
 
 					call DMiLay(RCORE, rad, WVNO, min, m, MU, &
-		     &                   NA/2, QEXT, QSCA, QBS, GQSC, &
+		     &                   NA/2, QEXT, QSCA, QABS, GQSC, &
 		     &                   M1, M2, S21, D21, NA ,Err)
 				endif
 20		if(Err.eq.1.or.spheres.eq.1.or.toolarge.eq.1) then
@@ -1267,6 +1386,8 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 				enddo
 			endif
 
+
+
 !	make sure the scattering matrix is properly normalized by adjusting the forward peak.
 		tot=0d0
 		tot2=0d0
@@ -1290,16 +1411,51 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 	  cabs=cabs+wf(i)*nr(l,k)*(cemie-csmie)
 		Mass=Mass+wf(i)*nr(l,k)*rho(l)*4d0*pi*r1**3/3d0
 		Vol=Vol+wf(i)*nr(l,k)*4d0*pi*r1**3/3d0
+		p%r_size(k)=rad
+		p%qabs_size(ilam,k)=(cemie-csmie)/(pi*rad**2)
+		p%qsca_size(ilam,k)=csmie/(pi*rad**2)
 	enddo
 	enddo
+
+	! Replace by geometrical cross section
+	if (geom) then
+		nmono = nint(r1**3/a0**3)
+		! print *, "nmono =", nmono
+		if ( nmono.ge.16 ) then
+			if (Df.gt.2.0_dp) then
+				G = (4.27d0*nmono**(-0.315d0)*exp(-1.74d0/nmono**(0.243d0)))*nmono*pi*(a0)**2
+			else
+				G = (0.352d0+0.566d0*nmono**(-0.138d0))*nmono*pi*(a0)**2
+			endif
+		else
+			G = (12.5d0*nmono**(-0.315d0)*exp(-2.53d0/nmono**(0.0920d0)))*nmono**(2.0_dp/3.0_dp)*pi*(a0)**2
+		end if
+		call MeerhoffMie(a0,lam(ilam),e1bis(1,ilam,1),e2bis(1,ilam,1),csmie_mono,cemie_mono &
+	&								,Mief11,Mief12,Mief33,Mief34,n_ang)
+		cabs_mono = cemie_mono-csmie_mono
+		cabs_RGD = cabs_mono*nmono
+
+	  kabs_G = G*(1d0-exp(-cabs_RGD/G))*1d4/(Mass*rho(2)/rho(1))
+
+		kabs_bis=max(kabs_G, cabs*1d4/(Mass))
+		kabs_bis=kabs_G
+		ksca_bis=1d4*cext/(Mass)-kabs_bis
+	endif
+
 10	continue
 	enddo
 
 	p%rho=Mass/Vol
 	p%mass= Mass
-	p%Kabs(ilam)=1d4*cabs/(Mass)
-	p%Ksca(ilam)=1d4*csca/(Mass)
+	if (geom) then
+		p%Kabs(ilam)=kabs_bis
+		p%Ksca(ilam)=ksca_bis
+	else
+		p%Kabs(ilam)=1d4*cabs/(Mass)
+		p%Ksca(ilam)=1d4*csca/(Mass)
+	endif
 	p%Kext(ilam)=1d4*cext/(Mass)
+	p%r_size(k) = ((3d0*Vol)/(4d0*pi))**(1d0/3d0)
 	p%F(ilam)%F11(1:180)=f11(ilam,1:180)/csca
 	p%F(ilam)%F12(1:180)=f12(ilam,1:180)/csca
 	p%F(ilam)%F22(1:180)=f22(ilam,1:180)/csca
@@ -1552,12 +1708,11 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 	!              Rewritten to use complex variables in input/output.
 	!              Converted to Fortran 90
 	!
-	!  Jul 2018  : Modified by C. Lefèvre, IRAM, France
+	!  Jul 2019  : Modified by C. Lefèvre, IRAM, France
 	!              lefevre@iram.fr
 	!              Generalization to nm grain material and rewritten to accept complex arrays
 	!              Integrated to SIGMA code to compute dust properties
-	!
-  !  Jul 2019   : Generalization to n components by Michiel Min and Charlène Lefèvre
+
 	!  The subroutine will:
 	!  1. Accept the parameters f, eps, nm
 	!
@@ -1573,57 +1728,249 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 
 		use Tools
 		implicit none
-		INTEGER               :: nm, i, k, l, m
-		INTEGER               :: j(nm+1)
+
+		COMPLEX (KIND=dp), INTENT (OUT) :: epsavg
+		INTEGER               :: i, j
+		INTEGER               :: nm
 		REAL(KIND =dp)        :: f(nm)
+		REAL(KIND =dp)        :: num, denum
 		COMPLEX (KIND=dp)     :: e(nm)
-		COMPLEX (KIND=dp)     :: epsavg
-		COMPLEX (KIND=dp)     :: c(nm+1)
-		COMPLEX (KIND=dp)     :: prod
-		COMPLEX (KIND=dp)     :: x(nm)
+		COMPLEX (KIND=dp)     :: a, b, c, d
+		COMPLEX (KIND=dp)     :: ai(nm+1)
+		COMPLEX (KIND=dp)     :: bi(nm)
 		COMPLEX (KIND=dp)     :: roots(nm)
 		COMPLEX (KIND=dp)     :: total !to check the result of Bruggeman rule
-		LOGICAL polish
-		polish=.false.
 
-		c=0d0
-		do i=1,nm
-			x=-e/2d0
-			x(i)=e(i)
 
-			c(nm+1)=c(nm+1)+f(i)
-			do k=1,nm
-				do l=1,k
-					j(l)=l
-				enddo
-				j(k+1)=nm+1
-	1			continue
-					prod=1.0_dp
-					do l=1,k
-						prod=prod*x(j(l))
-					enddo
-					c(nm-k+1)=c(nm-k+1)+f(i)*prod*(-1.0_dp)**k
-					do l=1,k
-						if((j(l)+1).lt.j(l+1)) then
-							j(l)=j(l)+1
-							do m=1,l-1
-								j(m)=m
-							enddo
-							goto 1
-						endif
-					enddo
-				continue
-			enddo
-		enddo
+		! endif
+		IF (f(nm).eq.0.0_dp) nm = nm-1
+	! verified both multiply 0.5 and divide by 2.0 are correct
+		if (nm.eq.2) then !reduced delta and classical solving of second degree polynomial equation
+			b = (3.0_dp*(f(2)*e(1)+f(1)*e(2))-2.0_dp*(e(1)+e(2)))/2.0
+			epsavg = - 0.5*b + 0.5*(b*b + 2.0*e(2)*e(1))**0.5
+			! ai(3) = cmplx(-2.0_dp,0.0_dp)
+			!
+			! ai(2) = 2.0_dp*(e(1)*e(2))-3.0_dp*(f(2)*e(1)+f(1)*e(2))
+			!
+			! ai(1) = e(1)*e(2)
+		else if (nm.eq.3) then !Tschirnhaus method to solve third degree polynomial equation
+			 ai(4) = cmplx(-4.0_dp,0.0_dp)
 
-		call zroots(c,nm,roots,polish)
-		do i=1,nm
-			if(real(roots(i)).gt.0d0.and.dimag(roots(i)).gt.0d0) epsavg=roots(i)
-		enddo
+			 ai(3) = 6.0_dp*(e(3)*f(3)+e(1)*f(1)+e(2)*f(2)) - 2.0_dp*(e(1)+e(2)+e(3))
+
+			 ai(2) = 2.0_dp*(e(1)*e(2)+e(2)*e(3)+e(1)*e(3)) &
+			 & -3.0_dp*(f(2)*e(1)*e(3)+f(1)*e(2)*e(3)+f(3)*e(1)*e(2))
+
+			 ai(1) = e(1)*e(2)*e(3)
+		else if (nm.eq.4) THEN
+			ai(5) = cmplx(-8.0_dp,0.0_dp)
+
+			ai(4) = 12.0_dp*(f(1)*e(1)+f(2)*e(2)+f(3)*e(3)+f(4)*e(4)) &
+			& - 4.0_dp*(e(1)+e(2)+e(3)+e(4))
+
+			ai(3) = 4.0_dp*(e(1)*e(2)+e(1)*e(3)+e(1)*e(4)+e(2)*e(3)+e(2)*e(4)+e(3)*e(4)) &
+			& - 6.0_dp*(f(1)*e(2)*e(3)+f(1)*e(2)*e(4)+f(1)*e(3)*e(4) &
+			& + f(2)*e(1)*e(3)+f(2)*e(1)*e(4)+f(2)*e(3)*e(4) &
+			& + f(3)*e(1)*e(2)+f(3)*e(1)*e(4)+f(3)*e(2)*e(4) &
+			& + f(4)*e(1)*e(2)+f(4)*e(1)*e(3)+f(4)*e(2)*e(3))
+
+			ai(2) = 2.0_dp*(e(1)*e(2)*e(3)+e(1)*e(2)*e(4)+e(1)*e(3)*e(4) &
+			& + e(2)*e(3)*e(4)) - 3.0_dp*(f(1)*e(2)*e(3)*e(4) + &
+			& f(2)*e(1)*e(3)*e(4)+f(3)*e(1)*e(2)*e(4)+f(4)*e(1)*e(2)*e(3))
+
+			ai(1) = e(1)*e(2)*e(3)*e(4)
+
+		else if (nm.eq.5) THEN
+			ai(6) = cmplx(-16.0_dp,0.0_dp)
+
+			ai(5) = 16*e(1)*f(1) - 8*e(1)*f(2) - 8*e(1)*f(3) - 8*e(1)*f(4) - 8*e(1)*f(5) - 8*e(2)*f(1) &
+			+ 16*e(2)*f(2) - 8*e(2)*f(3) - 8*e(2)*f(4) - 8*e(2)*f(5) - 8*e(3)*f(1) - 8*e(3)*f(2) &
+			+ 16*e(3)*f(3) - 8*e(3)*f(4) - 8*e(3)*f(5) - 8*e(4)*f(1) - 8*e(4)*f(2) - 8*e(4)*f(3) &
+			+ 16*e(4)*f(4) - 8*e(4)*f(5) - 8*e(5)*f(1) - 8*e(5)*f(2) - 8*e(5)*f(3) - 8*e(5)*f(4) + 16*e(5)*f(5)
+
+			ai(4) = 8*e(1)*e(2)*f(1) + 8*e(1)*e(2)*f(2) - 4*e(1)*e(2)*f(3) - 4*e(1)*e(2)*f(4) &
+			& - 4*e(1)*e(2)*f(5) + 8*e(1)*e(3)*f(1) - 4*e(1)*e(3)*f(2) + 8*e(1)*e(3)*f(3) &
+			& - 4*e(1)*e(3)*f(4) - 4*e(1)*e(3)*f(5) + 8*e(1)*e(4)*f(1) - 4*e(1)*e(4)*f(2) &
+			& - 4*e(1)*e(4)*f(3) + 8*e(1)*e(4)*f(4) - 4*e(1)*e(4)*f(5) + 8*e(1)*e(5)*f(1) &
+			& - 4*e(1)*e(5)*f(2) - 4*e(1)*e(5)*f(3) - 4*e(1)*e(5)*f(4) + 8*e(1)*e(5)*f(5) &
+			& - 4*e(2)*e(3)*f(1) + 8*e(2)*e(3)*f(2) + 8*e(2)*e(3)*f(3) - 4*e(2)*e(3)*f(4) &
+			& - 4*e(2)*e(3)*f(5) - 4*e(2)*e(4)*f(1) + 8*e(2)*e(4)*f(2) - 4*e(2)*e(4)*f(3) &
+			& + 8*e(2)*e(4)*f(4) - 4*e(2)*e(4)*f(5) - 4*e(2)*e(5)*f(1) + 8*e(2)*e(5)*f(2) &
+			& - 4*e(2)*e(5)*f(3) - 4*e(2)*e(5)*f(4) + 8*e(2)*e(5)*f(5) - 4*e(3)*e(4)*f(1) &
+			& - 4*e(3)*e(4)*f(2) + 8*e(3)*e(4)*f(3) + 8*e(3)*e(4)*f(4) - 4*e(3)*e(4)*f(5) &
+			& - 4*e(3)*e(5)*f(1) - 4*e(3)*e(5)*f(2) + 8*e(3)*e(5)*f(3) - 4*e(3)*e(5)*f(4) &
+			& + 8*e(3)*e(5)*f(5) - 4*e(4)*e(5)*f(1) - 4*e(4)*e(5)*f(2) - 4*e(4)*e(5)*f(3) &
+			& + 8*e(4)*e(5)*f(4) + 8*e(4)*e(5)*f(5)
+
+
+			ai(3) = 4*e(1)*e(2)*e(3)*f(1) + 4*e(1)*e(2)*e(3)*f(2) + 4*e(1)*e(2)*e(3)*f(3) &
+			& - 2*e(1)*e(2)*e(3)*f(4) - 2*e(1)*e(2)*e(3)*f(5) + 4*e(1)*e(2)*e(4)*f(1) &
+			& + 4*e(1)*e(2)*e(4)*f(2) - 2*e(1)*e(2)*e(4)*f(3) + 4*e(1)*e(2)*e(4)*f(4) &
+			& - 2*e(1)*e(2)*e(4)*f(5) + 4*e(1)*e(2)*e(5)*f(1) + 4*e(1)*e(2)*e(5)*f(2) &
+			& - 2*e(1)*e(2)*e(5)*f(3) - 2*e(1)*e(2)*e(5)*f(4) + 4*e(1)*e(2)*e(5)*f(5) + 4*e(1)*e(3)*e(4)*f(1) &
+			& - 2*e(1)*e(3)*e(4)*f(2) + 4*e(1)*e(3)*e(4)*f(3) + 4*e(1)*e(3)*e(4)*f(4) - 2*e(1)*e(3)*e(4)*f(5) &
+			& + 4*e(1)*e(3)*e(5)*f(1) - 2*e(1)*e(3)*e(5)*f(2) + 4*e(1)*e(3)*e(5)*f(3) - 2*e(1)*e(3)*e(5)*f(4) &
+			& + 4*e(1)*e(3)*e(5)*f(5) + 4*e(1)*e(4)*e(5)*f(1) - 2*e(1)*e(4)*e(5)*f(2) - 2*e(1)*e(4)*e(5)*f(3) &
+			& + 4*e(1)*e(4)*e(5)*f(4) + 4*e(1)*e(4)*e(5)*f(5) - 2*e(2)*e(3)*e(4)*f(1) + 4*e(2)*e(3)*e(4)*f(2) &
+			& + 4*e(2)*e(3)*e(4)*f(3) + 4*e(2)*e(3)*e(4)*f(4) - 2*e(2)*e(3)*e(4)*f(5) &
+			& - 2*e(2)*e(3)*e(5)*f(1) + 4*e(2)*e(3)*e(5)*f(2) + 4*e(2)*e(3)*e(5)*f(3) - 2*e(2)*e(3)*e(5)*f(4) &
+			& + 4*e(2)*e(3)*e(5)*f(5) - 2*e(2)*e(4)*e(5)*f(1) + 4*e(2)*e(4)*e(5)*f(2) - 2*e(2)*e(4)*e(5)*f(3) &
+			& + 4*e(2)*e(4)*e(5)*f(4) + 4*e(2)*e(4)*e(5)*f(5) - 2*e(3)*e(4)*e(5)*f(1) - 2*e(3)*e(4)*e(5)*f(2) &
+			+ 4*e(3)*e(4)*e(5)*f(3) + 4*e(3)*e(4)*e(5)*f(4) + 4*e(3)*e(4)*e(5)*f(5)
+
+
+			ai(2) = 2*e(1)*e(2)*e(3)*e(4)*f(1) + 2*e(1)*e(2)*e(3)*e(4)*f(2) + 2*e(1)*e(2)*e(3)*e(4)*f(3) &
+			& + 2*e(1)*e(2)*e(3)*e(4)*f(4) - e(1)*e(2)*e(3)*e(4)*f(5) + 2*e(1)*e(2)*e(3)*e(5)*f(1) &
+			& + 2*e(1)*e(2)*e(3)*e(5)*f(2) + 2*e(1)*e(2)*e(3)*e(5)*f(3) - e(1)*e(2)*e(3)*e(5)*f(4) &
+			& + 2*e(1)*e(2)*e(3)*e(5)*f(5) + 2*e(1)*e(2)*e(4)*e(5)*f(1) + 2*e(1)*e(2)*e(4)*e(5)*f(2) &
+			& - e(1)*e(2)*e(4)*e(5)*f(3) + 2*e(1)*e(2)*e(4)*e(5)*f(4) + 2*e(1)*e(2)*e(4)*e(5)*f(5) &
+			& + 2*e(1)*e(3)*e(4)*e(5)*f(1) - e(1)*e(3)*e(4)*e(5)*f(2) + 2*e(1)*e(3)*e(4)*e(5)*f(3) &
+			& + 2*e(1)*e(3)*e(4)*e(5)*f(4) + 2*e(1)*e(3)*e(4)*e(5)*f(5) - e(2)*e(3)*e(4)*e(5)*f(1) &
+			& + 2*e(2)*e(3)*e(4)*e(5)*f(2) + 2*e(2)*e(3)*e(4)*e(5)*f(3) + 2*e(2)*e(3)*e(4)*e(5)*f(4) &
+			+ 2*e(2)*e(3)*e(4)*e(5)*f(5)
+
+			ai(1) = e(1)*e(2)*e(3)*e(4)*e(5)
+
+		else if (nm.eq.6) THEN
+			ai(7)=cmplx(-32.0_dp,0.0_dp)
+
+
+			ai(6) = 32*e(1)*f(1) - 16*e(1)*f(2) - 16*e(1)*f(3) - 16*e(1)*f(4) - 16*e(1)*f(5) &
+			& - 16*e(1)*f(6) - 16*e(2)*f(1) + 32*e(2)*f(2) - 16*e(2)*f(3) - 16*e(2)*f(4) - 16*e(2)*f(5) &
+			& - 16*e(2)*f(6) - 16*e(3)*f(1) - 16*e(3)*f(2) + 32*e(3)*f(3) - 16*e(3)*f(4) - 16*e(3)*f(5) &
+			& - 16*e(3)*f(6) - 16*e(4)*f(1) - 16*e(4)*f(2) - 16*e(4)*f(3) + 32*e(4)*f(4) - 16*e(4)*f(5) &
+			& - 16*e(4)*f(6) - 16*e(5)*f(1) - 16*e(5)*f(2) - 16*e(5)*f(3) - 16*e(5)*f(4) + 32*e(5)*f(5) &
+			& - 16*e(5)*f(6) - 16*e(6)*f(1) - 16*e(6)*f(2) - 16*e(6)*f(3) - 16*e(6)*f(4) - 16*e(6)*f(5) + 32*e(6)*f(6)
+
+
+			ai(5)= 16*e(1)*e(2)*f(1) + 16*e(1)*e(2)*f(2) - 8*e(1)*e(2)*f(3) - 8*e(1)*e(2)*f(4) &
+			& - 8*e(1)*e(2)*f(5) - 8*e(1)*e(2)*f(6) + 16*e(1)*e(3)*f(1) - 8*e(1)*e(3)*f(2) &
+			& + 16*e(1)*e(3)*f(3) - 8*e(1)*e(3)*f(4) - 8*e(1)*e(3)*f(5) - 8*e(1)*e(3)*f(6) &
+			& + 16*e(1)*e(4)*f(1) - 8*e(1)*e(4)*f(2) - 8*e(1)*e(4)*f(3) + 16*e(1)*e(4)*f(4) &
+			& - 8*e(1)*e(4)*f(5) - 8*e(1)*e(4)*f(6) + 16*e(1)*e(5)*f(1) - 8*e(1)*e(5)*f(2) &
+			& - 8*e(1)*e(5)*f(3) - 8*e(1)*e(5)*f(4) + 16*e(1)*e(5)*f(5) - 8*e(1)*e(5)*f(6) &
+			& + 16*e(1)*e(6)*f(1) - 8*e(1)*e(6)*f(2) - 8*e(1)*e(6)*f(3) - 8*e(1)*e(6)*f(4) &
+			& - 8*e(1)*e(6)*f(5) + 16*e(1)*e(6)*f(6) - 8*e(2)*e(3)*f(1) + 16*e(2)*e(3)*f(2)&
+			& + 16*e(2)*e(3)*f(3) - 8*e(2)*e(3)*f(4) - 8*e(2)*e(3)*f(5) - 8*e(2)*e(3)*f(6) &
+			& - 8*e(2)*e(4)*f(1) + 16*e(2)*e(4)*f(2) - 8*e(2)*e(4)*f(3) + 16*e(2)*e(4)*f(4)&
+			& - 8*e(2)*e(4)*f(5) - 8*e(2)*e(4)*f(6) - 8*e(2)*e(5)*f(1) + 16*e(2)*e(5)*f(2) &
+			& - 8*e(2)*e(5)*f(3) - 8*e(2)*e(5)*f(4) + 16*e(2)*e(5)*f(5) - 8*e(2)*e(5)*f(6) &
+			& - 8*e(2)*e(6)*f(1) + 16*e(2)*e(6)*f(2) - 8*e(2)*e(6)*f(3) - 8*e(2)*e(6)*f(4) &
+			& - 8*e(2)*e(6)*f(5) + 16*e(2)*e(6)*f(6) - 8*e(3)*e(4)*f(1) - 8*e(3)*e(4)*f(2) &
+			& + 16*e(3)*e(4)*f(3) + 16*e(3)*e(4)*f(4) - 8*e(3)*e(4)*f(5) - 8*e(3)*e(4)*f(6)&
+			& - 8*e(3)*e(5)*f(1) - 8*e(3)*e(5)*f(2) + 16*e(3)*e(5)*f(3) - 8*e(3)*e(5)*f(4) &
+			& + 16*e(3)*e(5)*f(5) - 8*e(3)*e(5)*f(6) - 8*e(3)*e(6)*f(1) - 8*e(3)*e(6)*f(2) &
+			& + 16*e(3)*e(6)*f(3) - 8*e(3)*e(6)*f(4) - 8*e(3)*e(6)*f(5) + 16*e(3)*e(6)*f(6)&
+			& - 8*e(4)*e(5)*f(1) - 8*e(4)*e(5)*f(2) - 8*e(4)*e(5)*f(3) + 16*e(4)*e(5)*f(4) &
+			& + 16*e(4)*e(5)*f(5) - 8*e(4)*e(5)*f(6) - 8*e(4)*e(6)*f(1) - 8*e(4)*e(6)*f(2) &
+			& - 8*e(4)*e(6)*f(3) + 16*e(4)*e(6)*f(4) - 8*e(4)*e(6)*f(5) + 16*e(4)*e(6)*f(6) &
+			& - 8*e(5)*e(6)*f(1) - 8*e(5)*e(6)*f(2) - 8*e(5)*e(6)*f(3) - 8*e(5)*e(6)*f(4) &
+			& + 16*e(5)*e(6)*f(5) + 16*e(5)*e(6)*f(6)
+
+
+			ai(4)=8*e(1)*e(2)*e(3)*f(1) + 8*e(1)*e(2)*e(3)*f(2) + 8*e(1)*e(2)*e(3)*f(3) &
+			& - 4*e(1)*e(2)*e(3)*f(4) - 4*e(1)*e(2)*e(3)*f(5) - 4*e(1)*e(2)*e(3)*f(6) &
+			& + 8*e(1)*e(2)*e(4)*f(1) + 8*e(1)*e(2)*e(4)*f(2) - 4*e(1)*e(2)*e(4)*f(3) &
+			& + 8*e(1)*e(2)*e(4)*f(4) - 4*e(1)*e(2)*e(4)*f(5) - 4*e(1)*e(2)*e(4)*f(6) &
+			& + 8*e(1)*e(2)*e(5)*f(1) + 8*e(1)*e(2)*e(5)*f(2) - 4*e(1)*e(2)*e(5)*f(3) &
+			& - 4*e(1)*e(2)*e(5)*f(4) + 8*e(1)*e(2)*e(5)*f(5) - 4*e(1)*e(2)*e(5)*f(6) &
+			& + 8*e(1)*e(2)*e(6)*f(1) + 8*e(1)*e(2)*e(6)*f(2) - 4*e(1)*e(2)*e(6)*f(3) &
+			& - 4*e(1)*e(2)*e(6)*f(4) - 4*e(1)*e(2)*e(6)*f(5) + 8*e(1)*e(2)*e(6)*f(6) &
+			& + 8*e(1)*e(3)*e(4)*f(1) - 4*e(1)*e(3)*e(4)*f(2) + 8*e(1)*e(3)*e(4)*f(3) &
+			& + 8*e(1)*e(3)*e(4)*f(4) - 4*e(1)*e(3)*e(4)*f(5) - 4*e(1)*e(3)*e(4)*f(6) &
+			& + 8*e(1)*e(3)*e(5)*f(1) - 4*e(1)*e(3)*e(5)*f(2) + 8*e(1)*e(3)*e(5)*f(3) &
+			& - 4*e(1)*e(3)*e(5)*f(4) + 8*e(1)*e(3)*e(5)*f(5) - 4*e(1)*e(3)*e(5)*f(6) &
+			& + 8*e(1)*e(3)*e(6)*f(1) - 4*e(1)*e(3)*e(6)*f(2) + 8*e(1)*e(3)*e(6)*f(3) &
+			& - 4*e(1)*e(3)*e(6)*f(4) - 4*e(1)*e(3)*e(6)*f(5) + 8*e(1)*e(3)*e(6)*f(6) &
+			& + 8*e(1)*e(4)*e(5)*f(1) - 4*e(1)*e(4)*e(5)*f(2) - 4*e(1)*e(4)*e(5)*f(3) &
+			& + 8*e(1)*e(4)*e(5)*f(4) + 8*e(1)*e(4)*e(5)*f(5) - 4*e(1)*e(4)*e(5)*f(6) &
+			& + 8*e(1)*e(4)*e(6)*f(1) - 4*e(1)*e(4)*e(6)*f(2) - 4*e(1)*e(4)*e(6)*f(3) &
+			& + 8*e(1)*e(4)*e(6)*f(4) - 4*e(1)*e(4)*e(6)*f(5) + 8*e(1)*e(4)*e(6)*f(6) &
+			& + 8*e(1)*e(5)*e(6)*f(1) - 4*e(1)*e(5)*e(6)*f(2) - 4*e(1)*e(5)*e(6)*f(3) &
+			& - 4*e(1)*e(5)*e(6)*f(4) + 8*e(1)*e(5)*e(6)*f(5) + 8*e(1)*e(5)*e(6)*f(6) &
+			& - 4*e(2)*e(3)*e(4)*f(1) + 8*e(2)*e(3)*e(4)*f(2) + 8*e(2)*e(3)*e(4)*f(3) &
+			& + 8*e(2)*e(3)*e(4)*f(4) - 4*e(2)*e(3)*e(4)*f(5) - 4*e(2)*e(3)*e(4)*f(6) &
+			& - 4*e(2)*e(3)*e(5)*f(1) + 8*e(2)*e(3)*e(5)*f(2) + 8*e(2)*e(3)*e(5)*f(3) &
+			& - 4*e(2)*e(3)*e(5)*f(4) + 8*e(2)*e(3)*e(5)*f(5) - 4*e(2)*e(3)*e(5)*f(6) &
+			& - 4*e(2)*e(3)*e(6)*f(1) + 8*e(2)*e(3)*e(6)*f(2) + 8*e(2)*e(3)*e(6)*f(3) &
+			& - 4*e(2)*e(3)*e(6)*f(4) - 4*e(2)*e(3)*e(6)*f(5) + 8*e(2)*e(3)*e(6)*f(6) &
+			& - 4*e(2)*e(4)*e(5)*f(1) + 8*e(2)*e(4)*e(5)*f(2) - 4*e(2)*e(4)*e(5)*f(3) &
+			& + 8*e(2)*e(4)*e(5)*f(4) + 8*e(2)*e(4)*e(5)*f(5) - 4*e(2)*e(4)*e(5)*f(6) &
+			& - 4*e(2)*e(4)*e(6)*f(1) + 8*e(2)*e(4)*e(6)*f(2) - 4*e(2)*e(4)*e(6)*f(3) &
+			& + 8*e(2)*e(4)*e(6)*f(4) - 4*e(2)*e(4)*e(6)*f(5) + 8*e(2)*e(4)*e(6)*f(6) &
+			& - 4*e(2)*e(5)*e(6)*f(1) + 8*e(2)*e(5)*e(6)*f(2) - 4*e(2)*e(5)*e(6)*f(3) &
+			& - 4*e(2)*e(5)*e(6)*f(4) + 8*e(2)*e(5)*e(6)*f(5) + 8*e(2)*e(5)*e(6)*f(6) &
+			& - 4*e(3)*e(4)*e(5)*f(1) - 4*e(3)*e(4)*e(5)*f(2) + 8*e(3)*e(4)*e(5)*f(3) &
+			& + 8*e(3)*e(4)*e(5)*f(4) + 8*e(3)*e(4)*e(5)*f(5) - 4*e(3)*e(4)*e(5)*f(6) &
+			& - 4*e(3)*e(4)*e(6)*f(1) - 4*e(3)*e(4)*e(6)*f(2) + 8*e(3)*e(4)*e(6)*f(3) &
+			& + 8*e(3)*e(4)*e(6)*f(4) - 4*e(3)*e(4)*e(6)*f(5) + 8*e(3)*e(4)*e(6)*f(6) &
+			& - 4*e(3)*e(5)*e(6)*f(1) - 4*e(3)*e(5)*e(6)*f(2) + 8*e(3)*e(5)*e(6)*f(3) &
+			& - 4*e(3)*e(5)*e(6)*f(4) + 8*e(3)*e(5)*e(6)*f(5) + 8*e(3)*e(5)*e(6)*f(6) &
+			& - 4*e(4)*e(5)*e(6)*f(1) - 4*e(4)*e(5)*e(6)*f(2) - 4*e(4)*e(5)*e(6)*f(3) &
+			& + 8*e(4)*e(5)*e(6)*f(4) + 8*e(4)*e(5)*e(6)*f(5) + 8*e(4)*e(5)*e(6)*f(6)
+
+
+			ai(3) = 4*e(1)*e(2)*e(3)*e(4)*f(1) + 4*e(1)*e(2)*e(3)*e(4)*f(2) + 4*e(1)*e(2)*e(3)*e(4)*f(3)&
+			& + 4*e(1)*e(2)*e(3)*e(4)*f(4) - 2*e(1)*e(2)*e(3)*e(4)*f(5) - 2*e(1)*e(2)*e(3)*e(4)*f(6) &
+			& + 4*e(1)*e(2)*e(3)*e(5)*f(1) + 4*e(1)*e(2)*e(3)*e(5)*f(2) + 4*e(1)*e(2)*e(3)*e(5)*f(3) &
+			& - 2*e(1)*e(2)*e(3)*e(5)*f(4) + 4*e(1)*e(2)*e(3)*e(5)*f(5) - 2*e(1)*e(2)*e(3)*e(5)*f(6) &
+			& + 4*e(1)*e(2)*e(3)*e(6)*f(1) + 4*e(1)*e(2)*e(3)*e(6)*f(2) + 4*e(1)*e(2)*e(3)*e(6)*f(3) &
+			& - 2*e(1)*e(2)*e(3)*e(6)*f(4) - 2*e(1)*e(2)*e(3)*e(6)*f(5) + 4*e(1)*e(2)*e(3)*e(6)*f(6) &
+			& + 4*e(1)*e(2)*e(4)*e(5)*f(1) + 4*e(1)*e(2)*e(4)*e(5)*f(2) - 2*e(1)*e(2)*e(4)*e(5)*f(3) &
+			& + 4*e(1)*e(2)*e(4)*e(5)*f(4) + 4*e(1)*e(2)*e(4)*e(5)*f(5) - 2*e(1)*e(2)*e(4)*e(5)*f(6) &
+			& + 4*e(1)*e(2)*e(4)*e(6)*f(1) + 4*e(1)*e(2)*e(4)*e(6)*f(2) - 2*e(1)*e(2)*e(4)*e(6)*f(3) &
+			& + 4*e(1)*e(2)*e(4)*e(6)*f(4) - 2*e(1)*e(2)*e(4)*e(6)*f(5) + 4*e(1)*e(2)*e(4)*e(6)*f(6) &
+			& + 4*e(1)*e(2)*e(5)*e(6)*f(1) + 4*e(1)*e(2)*e(5)*e(6)*f(2) - 2*e(1)*e(2)*e(5)*e(6)*f(3) &
+			& - 2*e(1)*e(2)*e(5)*e(6)*f(4) + 4*e(1)*e(2)*e(5)*e(6)*f(5) + 4*e(1)*e(2)*e(5)*e(6)*f(6) &
+			& + 4*e(1)*e(3)*e(4)*e(5)*f(1) - 2*e(1)*e(3)*e(4)*e(5)*f(2) + 4*e(1)*e(3)*e(4)*e(5)*f(3) &
+			& + 4*e(1)*e(3)*e(4)*e(5)*f(4) + 4*e(1)*e(3)*e(4)*e(5)*f(5) - 2*e(1)*e(3)*e(4)*e(5)*f(6) &
+			& + 4*e(1)*e(3)*e(4)*e(6)*f(1) - 2*e(1)*e(3)*e(4)*e(6)*f(2) + 4*e(1)*e(3)*e(4)*e(6)*f(3) &
+			& + 4*e(1)*e(3)*e(4)*e(6)*f(4) - 2*e(1)*e(3)*e(4)*e(6)*f(5) + 4*e(1)*e(3)*e(4)*e(6)*f(6) &
+			& + 4*e(1)*e(3)*e(5)*e(6)*f(1) - 2*e(1)*e(3)*e(5)*e(6)*f(2) + 4*e(1)*e(3)*e(5)*e(6)*f(3) &
+			& - 2*e(1)*e(3)*e(5)*e(6)*f(4) + 4*e(1)*e(3)*e(5)*e(6)*f(5) + 4*e(1)*e(3)*e(5)*e(6)*f(6) &
+			& + 4*e(1)*e(4)*e(5)*e(6)*f(1) - 2*e(1)*e(4)*e(5)*e(6)*f(2) - 2*e(1)*e(4)*e(5)*e(6)*f(3) &
+			& + 4*e(1)*e(4)*e(5)*e(6)*f(4) + 4*e(1)*e(4)*e(5)*e(6)*f(5) + 4*e(1)*e(4)*e(5)*e(6)*f(6) &
+			& - 2*e(2)*e(3)*e(4)*e(5)*f(1) + 4*e(2)*e(3)*e(4)*e(5)*f(2) + 4*e(2)*e(3)*e(4)*e(5)*f(3) &
+			& + 4*e(2)*e(3)*e(4)*e(5)*f(4) + 4*e(2)*e(3)*e(4)*e(5)*f(5) - 2*e(2)*e(3)*e(4)*e(5)*f(6) &
+			& - 2*e(2)*e(3)*e(4)*e(6)*f(1) + 4*e(2)*e(3)*e(4)*e(6)*f(2) + 4*e(2)*e(3)*e(4)*e(6)*f(3) &
+			& + 4*e(2)*e(3)*e(4)*e(6)*f(4) - 2*e(2)*e(3)*e(4)*e(6)*f(5) + 4*e(2)*e(3)*e(4)*e(6)*f(6) &
+			& - 2*e(2)*e(3)*e(5)*e(6)*f(1) + 4*e(2)*e(3)*e(5)*e(6)*f(2) + 4*e(2)*e(3)*e(5)*e(6)*f(3) &
+			& - 2*e(2)*e(3)*e(5)*e(6)*f(4) + 4*e(2)*e(3)*e(5)*e(6)*f(5) + 4*e(2)*e(3)*e(5)*e(6)*f(6) &
+			& - 2*e(2)*e(4)*e(5)*e(6)*f(1) + 4*e(2)*e(4)*e(5)*e(6)*f(2) - 2*e(2)*e(4)*e(5)*e(6)*f(3) &
+			& + 4*e(2)*e(4)*e(5)*e(6)*f(4) + 4*e(2)*e(4)*e(5)*e(6)*f(5) + 4*e(2)*e(4)*e(5)*e(6)*f(6) &
+			& - 2*e(3)*e(4)*e(5)*e(6)*f(1) - 2*e(3)*e(4)*e(5)*e(6)*f(2) + 4*e(3)*e(4)*e(5)*e(6)*f(3) &
+			& + 4*e(3)*e(4)*e(5)*e(6)*f(4) + 4*e(3)*e(4)*e(5)*e(6)*f(5) + 4*e(3)*e(4)*e(5)*e(6)*f(6)
+
+			ai(2) = 2*e(1)*e(2)*e(3)*e(4)*e(5)*f(1) + 2*e(1)*e(2)*e(3)*e(4)*e(5)*f(2) &
+			& + 2*e(1)*e(2)*e(3)*e(4)*e(5)*f(3) + 2*e(1)*e(2)*e(3)*e(4)*e(5)*f(4) &
+			& + 2*e(1)*e(2)*e(3)*e(4)*e(5)*f(5) - e(1)*e(2)*e(3)*e(4)*e(5)*f(6) &
+			& + 2*e(1)*e(2)*e(3)*e(4)*e(6)*f(1) + 2*e(1)*e(2)*e(3)*e(4)*e(6)*f(2) &
+			& + 2*e(1)*e(2)*e(3)*e(4)*e(6)*f(3) + 2*e(1)*e(2)*e(3)*e(4)*e(6)*f(4) &
+			& - e(1)*e(2)*e(3)*e(4)*e(6)*f(5) + 2*e(1)*e(2)*e(3)*e(4)*e(6)*f(6) &
+			& + 2*e(1)*e(2)*e(3)*e(5)*e(6)*f(1) + 2*e(1)*e(2)*e(3)*e(5)*e(6)*f(2) &
+			& + 2*e(1)*e(2)*e(3)*e(5)*e(6)*f(3) - e(1)*e(2)*e(3)*e(5)*e(6)*f(4) &
+			& + 2*e(1)*e(2)*e(3)*e(5)*e(6)*f(5) + 2*e(1)*e(2)*e(3)*e(5)*e(6)*f(6) &
+			& + 2*e(1)*e(2)*e(4)*e(5)*e(6)*f(1) + 2*e(1)*e(2)*e(4)*e(5)*e(6)*f(2) &
+			& - e(1)*e(2)*e(4)*e(5)*e(6)*f(3) + 2*e(1)*e(2)*e(4)*e(5)*e(6)*f(4) &
+			& + 2*e(1)*e(2)*e(4)*e(5)*e(6)*f(5) + 2*e(1)*e(2)*e(4)*e(5)*e(6)*f(6) &
+			& + 2*e(1)*e(3)*e(4)*e(5)*e(6)*f(1) - e(1)*e(3)*e(4)*e(5)*e(6)*f(2) &
+			& + 2*e(1)*e(3)*e(4)*e(5)*e(6)*f(3) + 2*e(1)*e(3)*e(4)*e(5)*e(6)*f(4) &
+			& + 2*e(1)*e(3)*e(4)*e(5)*e(6)*f(5) + 2*e(1)*e(3)*e(4)*e(5)*e(6)*f(6) &
+			& - e(2)*e(3)*e(4)*e(5)*e(6)*f(1) + 2*e(2)*e(3)*e(4)*e(5)*e(6)*f(2) &
+			& + 2*e(2)*e(3)*e(4)*e(5)*e(6)*f(3) + 2*e(2)*e(3)*e(4)*e(5)*e(6)*f(4) &
+			& + 2*e(2)*e(3)*e(4)*e(5)*e(6)*f(5) + 2*e(2)*e(3)*e(4)*e(5)*e(6)*f(6)
+
+			ai(1) = e(1)*e(2)*e(3)*e(4)*e(5)*e(6)
+		endif
+
+		if (nm.gt.2) then
+			call zroots(ai,nm,roots,.true.)
+			epsavg = roots(1)
+		endif
 
 		total = 0.0_dp
-		do i = 1,nm
-			total = total + (e(i)-epsavg)/(e(i)+2.0_dp*epsavg)*f(i)
+		do j = 1,nm
+			total = total + (e(j)-epsavg)/(e(j)+2.0_dp*epsavg)*f(j)
 		enddo
 
 		if (abs(dreal(total)).gt.1e-15_dp.or.abs(dimag(total)).gt.1e-15_dp) THEN
@@ -1631,6 +1978,8 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 			write(*,*) total
 			stop
 		ENDIF
+
+
 		return
 	end subroutine brugg
 
@@ -1672,6 +2021,10 @@ SUBROUTINE zroots(a,m,roots,polish)
 			call laguer(a,m,roots(j),its)
 		enddo
 	endif
+  !adapted for SIGMA by CL - only root with positive real part is kept
+	do j=1,m
+		if (dreal(roots(j)).gt.0.0_dp) roots(1)=roots(j)
+	enddo
 	return
 	END
 
@@ -1804,6 +2157,7 @@ SUBROUTINE laguer(a,m,x,its)
 !-----------------------------------------------------------------------
 
       SUBROUTINE gauleg2(x1,x2,x,w,n)
+			use Tools
       INTEGER n
       REAL x1,x2,x(n),w(n)
       DOUBLE PRECISION EPS
@@ -1814,7 +2168,7 @@ SUBROUTINE laguer(a,m,x,its)
       xm=0.5d0*(x2+x1)
       xl=0.5d0*(x2-x1)
       do 12 i=1,m
-        z=cos(3.141592654d0*(i-.25d0)/(n+.5d0))
+        z=cos(pi*(i-.25d0)/(n+.5d0))
 1       continue
           p1=1.d0
           p2=0.d0
