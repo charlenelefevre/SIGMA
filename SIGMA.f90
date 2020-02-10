@@ -944,7 +944,8 @@ END
 		REAL (KIND=dp)                    :: tot, tot2
 		REAL (KIND=dp)                    :: pow
 		REAL (KIND=dp)                    :: Mass
-	  REAL (KIND=dp)                    :: Vol
+                REAL (KIND=dp)                    :: Mass2
+	        REAL (KIND=dp)                    :: Vol
 		REAL (KIND=dp)                    :: rho_av
 		REAL (KIND=dp)                    :: rho_avbis
 		REAL (KIND=dp)                    :: rho_ice
@@ -1307,6 +1308,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		kabs_bis=0d0
 		cext=0d0
 		Mass=0d0
+                Mass2=0d0
 		Vol=0d0
 
 		do i=1,n_ang/2
@@ -1410,6 +1412,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		csca=csca+wf(i)*nr(l,k)*csmie
 	  cabs=cabs+wf(i)*nr(l,k)*(cemie-csmie)
 		Mass=Mass+wf(i)*nr(l,k)*rho(l)*4d0*pi*r1**3/3d0
+                if (i.eq.1) Mass2=Mass2+nr(l,k)*rho(l)*4d0*pi*r1**3/3d0
 		Vol=Vol+wf(i)*nr(l,k)*4d0*pi*r1**3/3d0
 		p%r_size(k)=rad
 		p%qabs_size(ilam,k)=(cemie-csmie)/(pi*rad**2)
@@ -1435,10 +1438,10 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		cabs_mono = cemie_mono-csmie_mono
 		cabs_RGD = cabs_mono*nmono
 
-	  kabs_G = G*(1d0-exp(-cabs_RGD/G))*1d4/(Mass*rho(2)/rho(1))
+	        kabs_G = G*(1d0-exp(-cabs_RGD/G))*1d4/(Mass2*rho(2)/rho(1))
 
 		kabs_bis=max(kabs_G, cabs*1d4/(Mass))
-		kabs_bis=kabs_G
+		!kabs_bis=kabs_G
 		ksca_bis=1d4*cext/(Mass)-kabs_bis
 	endif
 
