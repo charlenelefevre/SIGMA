@@ -117,7 +117,7 @@ Df             =  3.0_dp !default value for Min et al.2016
 
 norm           = .true.
 crt            = .true.
-hyperion       = .false.
+hyperion       = .true.
 apow           =  3.50_dp
 
 fmax           =  0.0_dp
@@ -253,6 +253,7 @@ DO while(tmp.ne.' ')
 			WRITE(*,'("	-lambdlambda_ref = wavelength in micron to normalize extinction, by default 2.2")')
 			WRITE(*,'("	-file or -filename = output filename, by default opacities")')
 			WRITE(*,'("	-v = verbose")')
+			WRITE(*,'("	-non_norm_ice = opacities normalized by average bulk density without ices like in Ossenkopf et al. 1994")')
 			WRITE(*,'("")')
 			WRITE(*,'("	========================================================")')
 			WRITE(*,'("	Default parameters :")')
@@ -1049,13 +1050,6 @@ END
 	allocate(e2ice(nlam))
 
 
-	IF (trim(d_type(nm)).EQ."ices") THEN
-		vices = vfrac(nm)
-		ice = ref_ind(nm)
-		nm = nm-1
-	ELSE
-		vices = 0.00_dp
-	ENDIF
 
 
 	! ------------------------------------------------------------------------
@@ -1066,6 +1060,16 @@ END
 		frac(i) = vfrac(i)
 		frac_record(i) = vfrac(i)
 	ENDDO
+
+
+  !Loop to deal with ices need to be here
+	IF (trim(d_type(nm)).EQ."ices") THEN
+		vices = vfrac(nm)
+		ice = ref_ind(nm)
+		nm = nm-1
+	ELSE
+		vices = 0.00_dp
+	ENDIF
 
 !First read size distribution:
 do l=1,nm
@@ -1254,18 +1258,17 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 
 	do i=1,nm
 		if (norm) then
-			rho_av=rho_av+frac(i)*rho(i)
-			if (i.lt.nm) rho_avbis=rho_avbis+frac(i)/(1.0_dp-porosity)*rho(i)
+			rho_av=rho_av+frac_record(i)*(1.0_dp-porosity)*rho(i)
+			if (i.lt.nm.or.i.eq.nm.and.porosity.le.0) rho_avbis=rho_avbis+frac_record(i)*rho(i)
 		ELSE
-			rho_av=rho_av+frac(i)*rho(i)*(1.0_dp-vices)
-			if (i.lt.nm) rho_avbis=rho_avbis+frac(i)/(1.0_dp-porosity)*rho(i)*(1.0_dp-vices)
+			rho_av=rho_av+frac_record(i)*(1.0_dp-porosity)*rho(i)/(1.0_dp-vices)
+			if (i.lt.nm.or.i.eq.nm.and.porosity.le.0) rho_avbis=rho_avbis+frac_record(i)*rho(i)/(1.0_dp-vices)
 		endif
 	enddo
 	if(norm) THEN
-		rho_av = rho_av+vices*rho_ice !commented to reproduce Ossenkopf dust model
-		rho_avbis = rho_avbis+vices*rho_ice !commented to reproduce Ossenkopf dust model
+		rho_av = rho_av+vices*rho_ice !do not apply to reproduce Ossenkopf dust model
+		rho_avbis = rho_avbis+vices*rho_ice !do not apply to reproduce Ossenkopf dust model
 	endif
-	if (porosity.le.0) rho_avbis = rho_av
 	rho(1)=rho_av
 	rho(2)=rho_avbis
 	nm = 1
