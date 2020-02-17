@@ -1498,7 +1498,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		p%Ksca(ilam)=1d4*csca/(Mass)
 	endif
 	p%Kext(ilam)=1d4*cext/(Mass)
-	p%r_size(k) = ((3d0*Vol)/(4d0*pi))**(1d0/3d0)
+	!p%r_size(k) = ((3d0*Vol)/(4d0*pi))**(1d0/3d0) !commented out on 17/02/2020 - to be checked with variable porosity
 	p%F(ilam)%F11(1:180)=f11(ilam,1:180)/csca
 	p%F(ilam)%F12(1:180)=f12(ilam,1:180)/csca
 	p%F(ilam)%F22(1:180)=f22(ilam,1:180)/csca
