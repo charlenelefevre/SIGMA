@@ -520,7 +520,7 @@ SUBROUTINE WriteOutput (particlefile,nwav,ns,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p,
 		IF(verbose) write(*,'("Output file ",a," already exists, overwriting")') trim(tablefile)
 		CLOSE(unit=20,status='delete')
 	endif
-	OPEN(unit=20,file=tablefile,RECL=10000)
+	OPEN(unit=20,file=tablefile,RECL=100000)
 	write(20,'("#====================================================================#")')
 	write(20,'("# Cross sections computed using SIGMA")')
 	write(20,'("#=====================================================================================#")')
@@ -538,7 +538,7 @@ SUBROUTINE WriteOutput (particlefile,nwav,ns,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p,
 		IF(verbose) write(*,'("Output file ",a," already exists, overwriting")') trim(ddsfile)
 		CLOSE(unit=25,status='delete')
 	endif
-	OPEN(unit=25,file=ddsfile,RECL=10000)
+	OPEN(unit=25,file=ddsfile,RECL=100000)
 	write(25,FMT='(a)') "#-------------------------------------------------------------------/"
 	write(25,FMT='(a)') "# Tabulated dust properties: Q_abs, Q_sca, Q_ext, Albedo"
 	write(25,FMT='(a)') "# as a function of wavelength for different dust grain radii"
@@ -574,7 +574,7 @@ SUBROUTINE WriteOutput (particlefile,nwav,ns,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p,
 		CLOSE(unit=30,status='delete')
 	endif
 	IF(crt) THEN
-		OPEN(unit=30,file=crtfile,RECL=10000)
+		OPEN(unit=30,file=crtfile,RECL=100000)
 	!*****Header's*****
 		WRITE(UNIT=30,FMT='(a)') "eqdust" ! keyword in CRT dust file could be eqdust or simple
 		WRITE(UNIT=30,FMT='(E15.3)') 2.0e-7_dp ! N(H2) weighted by respective abundance of each type of grain compare to other types
@@ -876,6 +876,7 @@ END
 		INTEGER                           :: ns
 		INTEGER                           :: nmono
 		INTEGER                           :: ilam
+		INTEGER                           :: i_ice
 		INTEGER                           :: Err
 		INTEGER                           :: spheres
 		INTEGER                           :: toolarge
@@ -1061,15 +1062,18 @@ END
 		frac_record(i) = vfrac(i)
 	ENDDO
 
+  vices = 0.0_dp
+	i_ice = 0
 
-  !Loop to deal with ices need to be here
-	IF (trim(d_type(nm)).EQ."ices") THEN
-		vices = vfrac(nm)
-		ice = ref_ind(nm)
-		nm = nm-1
-	ELSE
-		vices = 0.00_dp
-	ENDIF
+  DO i=1,nm
+	  !Loop to deal with ices need to be here
+		IF (trim(d_type(i)).EQ."ices") THEN
+			vices = vfrac(i)
+			ice = ref_ind(i)
+			i_ice = i
+			if (i.eq.nm) nm = nm-1
+		ENDIF
+	ENDDO
 
 !First read size distribution:
 do l=1,nm
@@ -1108,7 +1112,7 @@ enddo
 
 ! Record size distribution as an output file to check
 
-	! OPEN(unit=50,file="output/sizedis.dat",RECL=10000)
+	! OPEN(unit=50,file="output/sizedis.dat",RECL=100000)
 
 	! index_WD = 7 ! 7 = 3.1A, 22=4.4A, 16 = 5.5A, 25 = 5.5B
 	! index_type = 1 ! 1 = silicates, 2 = carbonaceous
@@ -1137,7 +1141,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 			e2bis(i,1:nlam,k)=e2d(1:nlam)
 		enddo
 	end do
-	if (vices.gt.0.0d0) then
+	if (i_ice.eq.nm+1) then
 		filename(nm+1)= "ices/"//trim(ice)
 		call RegridDataLNK_file(filename(nm+1),lam(1:nlam),e1d(1:nlam),e2d(1:nlam),nlam,.true.,rho_ice)
 		e1ice(1:nlam)=e1d(1:nlam)
@@ -1215,6 +1219,11 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 				e1(1,i,k)=dreal(cdsqrt(eps_eff))
 				e2(1,i,k)=dimag(cdsqrt(eps_eff))
 
+				IF(verbose.and.i.eq.1.and.k.eq.1) THEN
+					write(*,'("========================================================")')
+					write(*,'("No ices included in the dust mixture")')
+					write(*,'("========================================================")')
+				ENDIF
 
 
 			ENDIF
@@ -1246,9 +1255,26 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 				e1blend=dreal(cdsqrt(eps_eff))
 				e2blend=dimag(cdsqrt(eps_eff))
 			ENDIF
-			call maxgarn_2compo(e1blend,e2blend,e1ice(i),e2ice(i),vices,e1blend_ice,e2blend_ice)
-			e1(1,i,k)=e1blend_ice
-			e2(1,i,k)=e2blend_ice
+
+			if (i_ice.eq.nm) then
+				call maxgarn_2compo(e1blend,e2blend,e1ice(i),e2ice(i),vices,e1blend_ice,e2blend_ice)
+				e1(1,i,k)=e1blend_ice
+				e2(1,i,k)=e2blend_ice
+				IF(verbose.and.i.eq.1.and.k.eq.1) THEN
+					write(*,'("========================================================")')
+					write(*,'("Maxwell Garnett rule is used to include ice in dust mixture")')
+					write(*,'("========================================================")')
+				ENDIF
+			else
+				e1(1,i,k)=e1blend
+				e2(1,i,k)=e2blend
+				IF(verbose.and.i.eq.1.and.k.eq.1) THEN
+					write(*,'("========================================================")')
+					write(*,'("Bruggeman rule is used to include ice in dust mixture")')
+					write(*,'("========================================================")')
+				ENDIF
+			endif
+
 			enddo
 		enddo
 	endif
@@ -1256,18 +1282,29 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 	rho_av=0.0_dp
 	rho_avbis=0.0_dp
 
+	! Tested on 13/02/2020
+	! Remained to be checked: differences between:
+	! MG: non-porous ICES
+	! BR: porous ICES
 	do i=1,nm
-		if (norm) then
-			rho_av=rho_av+frac_record(i)*(1.0_dp-porosity)*rho(i)
-			if (i.lt.nm.or.i.eq.nm.and.porosity.le.0) rho_avbis=rho_avbis+frac_record(i)*rho(i)
+		if (i_ice.eq.nm.or.norm) then
+			rho_av=rho_av+frac(i)*rho(i)
+			rho_avbis=rho_avbis+frac(i)/(1.0_dp-porosity)*rho(i)
+			!print *, i, frac(i), rho(i), rho_av, rho_avbis
 		ELSE
-			rho_av=rho_av+frac_record(i)*(1.0_dp-porosity)*rho(i)/(1.0_dp-vices)
-			if (i.lt.nm.or.i.eq.nm.and.porosity.le.0) rho_avbis=rho_avbis+frac_record(i)*rho(i)/(1.0_dp-vices)
+			if (i.ne.i_ice) rho_av=rho_av+frac(i)*rho(i)/(1.0_dp-frac(i_ice))
+			! if (i.lt.nm.or.i.eq.nm.and.porosity.le.0.and.i.ne.i_ice) rho_avbis=rho_avbis+frac(i)*rho(i)/(1.0_dp-frac(i_ice))/(1.0_dp-porosity)
+			if (i.ne.i_ice) rho_avbis=rho_avbis+frac(i)*rho(i)/(1.0_dp-frac(i_ice))/(1.0_dp-porosity)
+			!print *, i, frac(i), rho(i), rho_av
 		endif
 	enddo
-	if(norm) THEN
-		rho_av = rho_av+vices*rho_ice !do not apply to reproduce Ossenkopf dust model
-		rho_avbis = rho_avbis+vices*rho_ice !do not apply to reproduce Ossenkopf dust model
+	if(i_ice.eq.nm) THEN
+		rho_av = rho_av*(1.0_dp-vices) !do not apply to reproduce Ossenkopf dust model
+		rho_avbis = rho_avbis*(1.0_dp-vices) !do not apply to reproduce Ossenkopf dust model
+		if(norm) THEN
+			rho_av = rho_av+vices*rho_ice
+			rho_avbis = rho_avbis+vices*rho_ice
+		endif
 	endif
 	rho(1)=rho_av
 	rho(2)=rho_avbis
@@ -1415,7 +1452,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		csca=csca+wf(i)*nr(l,k)*csmie
 	  cabs=cabs+wf(i)*nr(l,k)*(cemie-csmie)
 		Mass=Mass+wf(i)*nr(l,k)*rho(l)*4d0*pi*r1**3/3d0
-                if (i.eq.1) Mass2=Mass2+nr(l,k)*rho(l)*4d0*pi*r1**3/3d0
+    if (i.eq.1) Mass2=Mass2+nr(l,k)*rho(l)*4d0*pi*r1**3/3d0
 		Vol=Vol+wf(i)*nr(l,k)*4d0*pi*r1**3/3d0
 		p%r_size(k)=rad
 		p%qabs_size(ilam,k)=(cemie-csmie)/(pi*rad**2)
