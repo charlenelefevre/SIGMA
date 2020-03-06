@@ -577,13 +577,16 @@ SUBROUTINE WriteOutput (particlefile,nwav,ns,Kabs_tot,Ksca_tot,Kext_tot,g_tot,p,
 		OPEN(unit=30,file=crtfile,RECL=100000)
 	!*****Header's*****
 		WRITE(UNIT=30,FMT='(a)') "eqdust" ! keyword in CRT dust file could be eqdust or simple
-		WRITE(UNIT=30,FMT='(E15.3)') 2.0e-7_dp ! N(H2) weighted by respective abundance of each type of grain compare to other types
-		WRITE(UNIT=30,FMT='(E15.3)') 1.0e-4_dp !CRT file need an arbitrary local size (a)
-		WRITE(UNIT=30,FMT='(1i8)') nwav ! number of frequencies
+		WRITE(UNIT=30,FMT='(E10.3)') 2.0e-7_dp ! N(H2) weighted by respective abundance of each type of grain compare to other types
+		WRITE(UNIT=30,FMT='(E10.3)') 1.0e-4_dp !CRT file need an arbitrary local size (a)
+		WRITE(UNIT=30,FMT='(i4)') nwav ! number of frequencies
 		WRITE(UNIT=30,FMT='(a)') "#"
 	!*****Header's end*****
 		do ilam=nwav,1,-1
-			write(30,*) clight/lam(ilam),g_tot(ilam),Kabs_tot(ilam)/(pi*1e-15_dp*N_Avo*100),Ksca_tot(ilam)/(pi*1e-15_dp*N_Avo*100)
+			write(UNIT=30,FMT='(E15.3)',advance='no') clight/lam(ilam)
+			write(UNIT=30,FMT='(E15.3)',advance='no') g_tot(ilam)
+			write(UNIT=30,FMT='(E15.3)',advance='no') Kabs_tot(ilam)/(pi*1e-15_dp*N_Avo*100)
+			write(UNIT=30,FMT='(E15.3)') Ksca_tot(ilam)/(pi*1e-15_dp*N_Avo*100)
 		enddo
 		CLOSE(unit=30)
 	ENDIF
@@ -1233,7 +1236,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		do k=1,ns
 			if(trim(sizedistrib).NE."plaw".AND.pr(1).GT.-1.0_dp) THEN
 				frac=frac_record*(1.0_dp-pr(k))
-				nm = 6 !be careful need a patch no clue why nm is lost in the middle!!!
+				!print *, nm !in the past nm was lost at this step
 				frac(nm)=pr(k)
 				! print*, frac,pr(k)
 				! Normalization needs to be here if porosity different for each bin size
