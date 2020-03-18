@@ -8,16 +8,13 @@ We rely on effective medium theory to compute effective refractive index and Mie
 A related paper was submitted to Astronomy & Astrophysics journal.
 The reference will be updated in GitHub once accepted.
 
-If your work makes use of SIGMA or any modified version derived from SIGMA, please cite the following publications :
+If your work makes use of SIGMA or any modified version derived from SIGMA, you agree to cite the following publications :
 
-Lefèvre, Charlène, Min, Michiel, Pagani, Laurent, Hirashita, Hiro, Vorobyov, Eduard, & Meingast, Stefan. (2019, February 4). SIGMA: Simple Icy Grain Model for Aggregates (Version V1.0). Zenodo. http://doi.org/10.5281/zenodo.2573887
-
-Lefèvre, C., Min, M., Pagani, P., et al. 2019, A&A, SIGMA: Simple Icy Grain Model for Aggregates (reference in latest update in GitHub)
-
-Woitke, P., Min, M., Pinte, C., et al. 2016, A&A, 586, A103, Consistent dust and gas models for protoplanetary disks. I. Disk shape, dust settling, opacities, and PAHs
-
-Min, M., Rab, C., Woitke, P., Dominik, C., & Ménard, F. 2016, A&A, 585, A13, Multiwavelength optical properties of compact dust aggregates in protoplanetary disks
-
+• DOI associated to Zenodo registration of SIGMA:http://doi.org/10.5281/zenodo.2573887
+• Lefèvre, C., Min, M., Pagani, P., et al. 2020, A&A (subm.), SIGMA: Simple Icy Grain Model for Aggregates
+• The distribution of Hollow Spheres as defined in Min, M., Hovenier, J. W., and de Koter, A. 2005, A&A, 432, 909
+• The agreement between approximate methods ans DHS: Min, M., Rab, C., Woitke, P., Dominik, C., & Ménard, F. 2016, A&A, 585, A13, Multiwave- length optical properties of compact dust aggregates in protoplanetary disks
+• Any references associated to the refractive index data taken by the user. 2 Installation
 
 -------------------------------------------------------------
 
@@ -45,15 +42,20 @@ setenv ifort "true"
 Please try to solve software installation with your computer support before reporting.
 --------------------------------------------------------------
 
-To install SIGMA:
+To install SIGMA with gfortran:
 cd SIGMA
 make clean
 make
 
+To install SIGMA with ifort
+cd SIGMA
+make clean
+make ifort=true
+
 --------------------------------------------------------------
 To run SIGMA:
 You can test with default value:
-SIGMA -nm 6 -na 100 -verbose
+SIGMA -nm 3 -na 100 -v
 
 --------------------------------------------------------------
 Or obtain more information about options with:
