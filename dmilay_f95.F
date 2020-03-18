@@ -140,10 +140,10 @@ c                        ** Check input arguments for gross errors
       IF( RCORE.LE.0.0 .OR. RCORE.GT.RSHELL )
      &    INPERR = WRTBAD( 'Rcore' )
 
-      IF( DOUBLE PRECISION(RINDSH).LE.0.0 .OR. AIMAG(RINDSH).GT.0.0 )
+      IF( REAL(RINDSH).LE.0.0 .OR. AIMAG(RINDSH).GT.0.0 )
      &    INPERR = WRTBAD( 'RindSh' )
 
-      IF( DOUBLE PRECISION(RINDCO).LE.0.0 .OR. AIMAG(RINDCO).GT.0.0 )
+      IF( REAL(RINDCO).LE.0.0 .OR. AIMAG(RINDCO).GT.0.0 )
      &    INPERR = WRTBAD( 'RindCo' )
 
       IF( NUMANG.LT.0 ) INPERR = WRTBAD( 'NumAng' )
