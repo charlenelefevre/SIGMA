@@ -59,6 +59,7 @@ all:		$(PROGRAM)
 clean:;		rm -f $(OBJS) $(PROGRAM) *.mod *.i
 install:	$(PROGRAM)
 		mv $(PROGRAM) $(DEST)
+test:;          cp DATA/input/COMPO_test.dat DATA/input/COMPO.dat
 
 # how to compile program 
 .SUFFIXES : .o .f .f90 .F
