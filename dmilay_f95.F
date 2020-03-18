@@ -51,12 +51,13 @@ c     ..
 c     .. Scalar Arguments ..
 
       INTEGER   MAXANG, NUMANG
-      DOUBLE PRECISION      GQSC, QBS, QEXT, QSCA, RCORE, RSHELL, WVNO
-      DOUBLE COMPLEX   RINDCO, RINDSH
+      INTEGER, PARAMETER        :: dp      = SELECTED_REAL_KIND(P=15)
+      REAL (KIND=dp)      GQSC, QBS, QEXT, QSCA, RCORE, RSHELL, WVNO
+      COMPLEX (KIND=dp)  RINDCO, RINDSH
 c     ..
 c     .. Array Arguments ..
 
-      DOUBLE PRECISION      MU( NUMANG ), D21( MAXANG, 2 ), M1( MAXANG, 2 ),
+      REAL (KIND=dp) MU( NUMANG ), D21( MAXANG, 2 ), M1( MAXANG, 2 ),
      &          M2( MAXANG, 2 ), S21( MAXANG, 2 )
 c     ..
 c     .. Local Scalars ..
