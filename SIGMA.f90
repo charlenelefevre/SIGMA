@@ -1164,6 +1164,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		write(*,'("Computing particle:")')
 		write(*,'("Size: ",f10.3," - ",f10.3," micron")') amin,amax
 		write(*,'("Shape: porosity = ",f8.2,"% , fmax = ",f8.3)') porosity*100,fmax
+		write(*,'("========================================================")')
 	ENDIF
 
 	nm=nm+1
@@ -1820,7 +1821,15 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 
 		call zroots(c,nm,roots,polish)
 		do i=1,nm
-			if(real(roots(i)).gt.0d0.and.dimag(roots(i)).gt.0d0) epsavg=roots(i)
+			if(real(roots(i)).gt.0d0.and.dimag(roots(i)).gt.0d0) THEN
+				epsavg=roots(i)
+			else if (roots(i).eq.roots(1).and.dimag(roots(i)).lt.0d0) then
+				write(*,*) "ERROR Bruggeman rule could cannot converge: no positive solution for effective refractive index: "
+				write(*,*) roots(i)
+				write(*,*) "Please try with a restricted range by using -lmin and -lmax"
+				write(*,FMT='(a,f6.1,a,f6.1)') "currently lmin = ", lam(1), ", lmax = ", lam(nlam)
+				stop
+			endif
 		enddo
 
 		total = 0.0_dp
