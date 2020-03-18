@@ -1,5 +1,5 @@
 ! File to summarize composition
-! # name	  refr_index_table_name volume_fraction	rule(mix/add) Mdust/MH
+! # name ref_index vfrac rule sizedistrib Mdust/(100*MH) amin amax
 1 silicates Sil_WD01 1.0 add na_WD01_5.5B_sil 6.9900E-01 3.1E-04 2.0
 2 carbonaceous graphite_Epara_Draine2003 0.333 add na_WD01_5.5B_gra_plaw-ed-cv 1.6400E-01 3.1E-04 10.0
 3 carbonaceous graphite_Eperp_Draine2003 0.667 add na_WD01_5.5B_gra_plaw-ed-cv 1.6400E-01 3.1E-04 10.0

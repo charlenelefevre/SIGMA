@@ -1,5 +1,5 @@
 ! File to summarize composition
-! # name	  refr_index_table_name volume_fraction	rule(mix/add) Mdust/MH
+! # name ref_index vfrac rule sizedistrib Mdust/(100*MH) amin amax
 1 silicates Sil_OH94 0.51 mix plaw 1.0 5.0E-03 0.25
 2 carbonaceous Carb_OH94 0.49 mix plaw 1.0 5.0E-03 0.25
-3 ices Ices_OH94 0.33 mix plaw 1.0 5.0E-03 0.25
+3 ices Dirty_ice_Hudgins_strong 0.33 mix plaw 1.0 5.0E-03 0.25
