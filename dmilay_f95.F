@@ -3,32 +3,32 @@ c-----------------------------------------------------------------------
 
 
       SUBROUTINE DMiLay( RCORE, RSHELL, WVNO, RINDSH, RINDCO, MU,
-     &                   NUMANG, QEXT, QSCA, QBS, GQSC, 
+     &                   NUMANG, QEXT, QSCA, QBS, GQSC,
      &                   M1, M2, S21, D21, MAXANG, Err)
 
 c **********************************************************************
-c    DOUBLE PRECISION version of MieLay, which computes electromagnetic 
-c    scattering by a stratified sphere, i.e. a particle consisting of a 
-c    spherical core surrounded by a spherical shell.  The surrounding 
-c    medium is assumed to have refractive index unity.  The formulas, 
-c    manipulated to avoid the ill-conditioning that plagued earlier 
+c    DOUBLE PRECISION version of MieLay, which computes electromagnetic
+c    scattering by a stratified sphere, i.e. a particle consisting of a
+c    spherical core surrounded by a spherical shell.  The surrounding
+c    medium is assumed to have refractive index unity.  The formulas,
+c    manipulated to avoid the ill-conditioning that plagued earlier
 c    formulations, were published in:
 
 c        Toon, O. and T. Ackerman, Applied Optics 20, 3657 (1981)
 
 c    Further documentation, including definitons of input and output
 c    arguments, is inside the single precision version of this program
-c    (SUBROUTINE MieLay, available by anonymous ftp from 
+c    (SUBROUTINE MieLay, available by anonymous ftp from
 c    climate.gsfc.nasa.gov in directory pub/wiscombe).
 
-c    It is recommended to use this DOUBLE PRECISION version for IEEE 
+c    It is recommended to use this DOUBLE PRECISION version for IEEE
 c    arithmetic (32-bit floating point) computers, just to be safe.
 c    If computer time is critical, back-to-back tests with the single
 c    precision version should be done for ranges of radii and refractive
 c    index relevant to your particular problem, before adopting the
 c    single precision version.  This version is also recommended for
-c    cases of large size parameter (bigger than 10 or so) and/or large 
-c    imaginary refractive index (bigger than 1 or so) and also whenever 
+c    cases of large size parameter (bigger than 10 or so) and/or large
+c    imaginary refractive index (bigger than 1 or so) and also whenever
 c    overflows or strange behavior are encountered in running the
 c    single precision version.  Sometimes the bigger exponent range in
 c    DOUBLE PRECISION is as important as the added precision.
@@ -51,12 +51,12 @@ c     ..
 c     .. Scalar Arguments ..
 
       INTEGER   MAXANG, NUMANG
-      REAL      GQSC, QBS, QEXT, QSCA, RCORE, RSHELL, WVNO
+      DOUBLE PRECISION      GQSC, QBS, QEXT, QSCA, RCORE, RSHELL, WVNO
       COMPLEX   RINDCO, RINDSH
 c     ..
 c     .. Array Arguments ..
 
-      REAL      MU( NUMANG ), D21( MAXANG, 2 ), M1( MAXANG, 2 ),
+      DOUBLE PRECISION      MU( NUMANG ), D21( MAXANG, 2 ), M1( MAXANG, 2 ),
      &          M2( MAXANG, 2 ), S21( MAXANG, 2 )
 c     ..
 c     .. Local Scalars ..
@@ -65,14 +65,14 @@ c     .. Local Scalars ..
       INTEGER   J, K, M, N, NMX1, NMX2, NN
 
       DOUBLE PRECISION  AA, AIM, AM1IM, AM1RE, ARE, BB, BIM, BM1IM,
-     &                  BM1RE, BRE, CC, COSX1, COSX4, DD, DENOM, 
+     &                  BM1RE, BRE, CC, COSX1, COSX4, DD, DENOM,
      &                  DGQSC, DQEXT, DQSCA, E2Y1,
      &                  EY1, EY1MY4, EY1PY4, EY4, FOURPI, PINUM,
      &                  RMM, RX, SINX1, SINX4, TOLER, X1, X4,
      &                  XCORE, XSHELL, Y1, Y4
 
       DOUBLE COMPLEX  AC, ACOE, ACOEM1, BC, BCOE, BCOEM1, CI, CZERO,
-     &                DH1, DH2, DH4, DUMMY, DUMSQ, K1, K2, K3, 
+     &                DH1, DH2, DH4, DUMMY, DUMSQ, K1, K2, K3,
      &                P24H21, P24H24, RRFX, SBACK, WM1
 c     ..
 c     .. Local Arrays ..
@@ -137,13 +137,13 @@ c                        ** Check input arguments for gross errors
 
       IF( RSHELL.LE.0.0 ) INPERR = WRTBAD( 'Rshell' )
 
-      IF( RCORE.LE.0.0 .OR. RCORE.GT.RSHELL ) 
+      IF( RCORE.LE.0.0 .OR. RCORE.GT.RSHELL )
      &    INPERR = WRTBAD( 'Rcore' )
 
-      IF( REAL(RINDSH).LE.0.0 .OR. AIMAG(RINDSH).GT.0.0 )
+      IF( DOUBLE PRECISION(RINDSH).LE.0.0 .OR. AIMAG(RINDSH).GT.0.0 )
      &    INPERR = WRTBAD( 'RindSh' )
 
-      IF( REAL(RINDCO).LE.0.0 .OR. AIMAG(RINDCO).GT.0.0 ) 
+      IF( DOUBLE PRECISION(RINDCO).LE.0.0 .OR. AIMAG(RINDCO).GT.0.0 )
      &    INPERR = WRTBAD( 'RindCo' )
 
       IF( NUMANG.LT.0 ) INPERR = WRTBAD( 'NumAng' )
@@ -193,7 +193,7 @@ c                                ** Down-recurrence for A function
 
          DO 30 M = 1, 3
 
-            W( M, NN ) = ( ( NN + 1) / Z( M + 1) ) - 
+            W( M, NN ) = ( ( NN + 1) / Z( M + 1) ) -
      &                   ONE / ( ( (NN + 1)/Z(M + 1)) + W( M, NN + 1) )
 
    30    CONTINUE
@@ -583,5 +583,3 @@ c     ..
       WRTDIM = .TRUE.
 
       END
-
-	
