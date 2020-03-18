@@ -52,7 +52,7 @@ c     .. Scalar Arguments ..
 
       INTEGER   MAXANG, NUMANG
       DOUBLE PRECISION      GQSC, QBS, QEXT, QSCA, RCORE, RSHELL, WVNO
-      COMPLEX   RINDCO, RINDSH
+      DOUBLE COMPLEX   RINDCO, RINDSH
 c     ..
 c     .. Array Arguments ..
 
