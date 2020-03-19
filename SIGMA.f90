@@ -870,7 +870,7 @@ END
 		TYPE (PARTICLE)                   :: p
 
 	  INTEGER                           :: ii, i, j, k, l
-		INTEGER, PARAMETER                :: MAXMAT             = 7  ! maximum number of grain material
+		INTEGER                           :: MAXMAT                   ! maximum number of grain material
 		INTEGER, PARAMETER                :: n_ang              = 180 ! number of angles
 		INTEGER                           :: iopac
 		INTEGER                           :: nsubgrains
@@ -1004,6 +1004,7 @@ END
 
 
 	na=180
+        MAXMAT = nm+1
 
 	allocate(Mief11(na))
 	allocate(Mief12(na))
@@ -2019,13 +2020,13 @@ SUBROUTINE laguer(a,m,x,its)
 !-----------------------------------------------------------------------
 
       SUBROUTINE gauleg2(x1,x2,x,w,n)
-			use Tools
+      use Tools
       INTEGER n
-      REAL x1,x2,x(n),w(n)
-      DOUBLE PRECISION EPS
+      REAL (KIND=dp) x1,x2,x(n),w(n)
+      REAL (KIND=dp) EPS
       PARAMETER (EPS=3.d-14)
       INTEGER i,j,m
-      DOUBLE PRECISION p1,p2,p3,pp,xl,xm,z,z1
+      REAL (KIND=dp) p1,p2,p3,pp,xl,xm,z,z1
       m=(n+1)/2
       xm=0.5d0*(x2+x1)
       xl=0.5d0*(x2-x1)
