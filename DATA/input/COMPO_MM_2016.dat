@@ -1,5 +1,5 @@
 ! File to summarize composition
 ! # name ref_index vfrac rule sizedistrib Mdust/(100*MH) amin amax
 1 silicates MgSiO3_MM 0.75 mix plaw 1.0 4.0 4.0
-2 carbonaceous Carbon_MM 0.10 mix plaw 1.0 4.0 4.0
-3 iron_sulfides FeS_MM 0.15 mix plaw 1.0 4.0 4.0
+2 carbonaceous Carbon_MM 0.15 mix plaw 1.0 4.0 4.0
+3 iron_sulfides FeS_MM 0.10 mix plaw 1.0 4.0 4.0
