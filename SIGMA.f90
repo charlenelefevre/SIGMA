@@ -126,8 +126,8 @@ porosity       =  0.0_dp
 vices          =  0.0_dp !by default no ice mantles
 
 na             =  50
-nlam           =  1000
-lam1           =  0.05_dp
+nlam           =  100
+lam1           =  0.3_dp
 lam2           =  1000.0_dp
 nm             =  3 !by default mixture of silicates, carbonaceous and iron sulfide
 n_add          =  0
