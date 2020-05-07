@@ -54,6 +54,7 @@ IMPLICIT NONE
 REAL (KIND=dp)                    :: lam1                   ! minimum wavelength
 REAL (KIND=dp)                    :: lam2                   ! maximum wavelength
 CHARACTER (len=500)               :: particlefile           ! name of output
+CHARACTER (len=500)               :: inputfile              ! name of output
 
 INTEGER                           :: na                     ! nr of sizes for size distribution
 REAL (KIND=dp)                    :: apow                   ! power law index
@@ -131,6 +132,7 @@ nm             =  3 !by default mixture of silicates, carbonaceous and iron sulf
 n_add          =  0
 n_mix          =  0
 particlefile   = "opacities"
+inputfile      = ""
 lambda_ref     =  2.20 !by default K band is used
 
 ! ------------------------------------------------------------------------
@@ -176,9 +178,12 @@ DO while(tmp.ne.' ')
 			i = i+1
 			CALL getarg(i,value)
 			READ(value,*) lambda_ref
-		CASE('-file','-filename')
+		CASE('-file','-ofile')
 			i = i+1
 			CALL getarg(i,particlefile)
+		CASE('-ifile')
+			i = i+1
+			CALL getarg(i,inputfile)
 		CASE('-lref')
 			i = i+1
 			CALL getarg(i,value)
@@ -206,6 +211,7 @@ DO while(tmp.ne.' ')
 			WRITE(*,'("	-nm = number of dust components apart from vacuum")')
 			WRITE(*,'("")')
 			WRITE(*,'("	Set according to DATA/input/COMPO.dat")')
+			WRITE(*,'("	or DATA/input/COMPO_ifile.dat if -ifile is defined")')
 			WRITE(*,'("	Examples of composition are provided in DATA/input folder")')
 			WRITE(*,'("")')
 			WRITE(*,'("	The different components could be mixed or added")')
@@ -247,7 +253,8 @@ DO while(tmp.ne.' ')
 			WRITE(*,'("	-lmax = lambda max")')
 			WRITE(*,'("	-nlam = number of wavelength bins")')
 			WRITE(*,'("	-lambda_ref = wavelength in micron to normalize extinction, by default 2.2")')
-			WRITE(*,'("	-file or -filename = output filename, by default opacities")')
+			WRITE(*,'("	-file or -ofile = output filename, by default opacities")')
+			WRITE(*,'("	-ifile = input filename: DATA/input/COMPO_ifile.dat will be used as composition file")')
 			WRITE(*,'("	-v = verbose")')
 			WRITE(*,'("")')
 			WRITE(*,'("	========================================================")')
@@ -338,7 +345,7 @@ ALLOCATE (rule(nm))
 ALLOCATE (a_min(nm))
 ALLOCATE (a_max(nm))
 
-CALL READ_COMPO(nm,number,dust_type,ref_index,vfrac,rule,sizedis,m_dust,a_min,a_max)
+CALL READ_COMPO(nm,number,dust_type,ref_index,vfrac,rule,sizedis,m_dust,a_min,a_max,inputfile)
 
 !Check number of bin sizes:
 nlines = 0
@@ -795,7 +802,7 @@ END
 !-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
 
-	SUBROUTINE READ_COMPO(ndust,number,type,refr_index,vtype,rule,sizedis,mdust,amin,amax)
+	SUBROUTINE READ_COMPO(ndust,number,type,refr_index,vtype,rule,sizedis,mdust,amin,amax,ifile)
 		use Tools
 		IMPLICIT NONE
 		INTEGER                           :: ndust
@@ -809,12 +816,19 @@ END
 		REAL (KIND=dp)						        :: vtype(ndust)                   ! volume fraction of each component
 		REAL (KIND=dp)						        :: mdust(ndust)
 		CHARACTER*500							        :: sizedis(ndust)
+		CHARACTER*500			        				:: ifile
+		CHARACTER(len = :), allocatable   :: ifile_trim
 		REAL (KIND=dp)						        :: amin(ndust)
 		REAL (KIND=dp)						        :: amax(ndust)
 
+		ifile_trim = trim(ifile)
 		!Check that nm is correct:
 		nlines = 0
-		OPEN (1, file = 'DATA/input/COMPO.dat')
+		if(ifile_trim.NE."") THEN
+			OPEN (1, file = "DATA/input/COMPO_"//trim(ifile)//".dat")
+		ELSE
+			OPEN (1, file = "DATA/input/COMPO.dat")
+		endif
 		DO
 		    READ (1,*, END=109)
 		    nlines = nlines + 1
@@ -822,12 +836,18 @@ END
 		109 CLOSE (1)
 		nlines = nlines - 2 !subtraction of command lines
 		IF (ndust.NE.nlines) THEN
-			write(*,'("ERROR: ",i2," components found in DATA/input/COMPO.dat")') nlines
+			write(*,'("ERROR: ",i2," components found in file = DATA/input/COMPO_",a,".dat")') nlines,ifile_trim
 			write(*,'("You should run SIGMA with -nm ",i2)') nlines
 			stop
 		ENDIF
 
-		OPEN(99,file="DATA/input/COMPO.dat")
+		if(ifile_trim.NE."") THEN
+			OPEN (99, file = "DATA/input/COMPO_"//trim(ifile)//".dat")
+			if(verbose) write(*,*) "Composition taken from: DATA/input/COMPO_"//trim(ifile)//".dat"
+		ELSE
+			OPEN (99, file = "DATA/input/COMPO.dat")
+			if(verbose) write(*,*) "Composition taken from: DATA/input/COMPO.dat"
+		endif
 		read (99, fmt=* )
 		read (99, fmt=* )
 		do i=3, ndust+2
