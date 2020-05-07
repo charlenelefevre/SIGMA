@@ -10,7 +10,6 @@ LOGICAL, PUBLIC                   :: verbose
 LOGICAL, PUBLIC                   :: geom
 REAL (KIND=dp)                    :: a0                                 ! monomer size
 REAL (KIND=dp)                    :: Df                                 ! monomer size
-LOGICAL, PUBLIC                   :: norm
 LOGICAL, PUBLIC                   :: crt
 LOGICAL, PUBLIC                   :: hyperion
 REAL (KIND=dp), ALLOCATABLE       :: lam(:)                 ! wavelength
@@ -64,7 +63,7 @@ REAL (KIND=dp)                    :: porosity               ! porosity = 1 - fil
 INTEGER                           :: nm                     ! nr of grain material in a composite grain
 INTEGER                           :: n_add                  ! nr of grain material to be added
 INTEGER                           :: n_mix                  ! nr of grain material to be mixed
-REAL (KIND=dp)                    :: vices                  ! volume fraction of ices
+REAL (KIND=dp)                    :: V_ices                  ! volume fraction of ices
 
 TYPE(PARTICLE)                    :: p
 INTEGER                           :: i, j
@@ -115,7 +114,6 @@ geom           = .false.
 a0             =  0.2_dp !default value for Min et al.2016
 Df             =  3.0_dp !default value for Min et al.2016
 
-norm           = .true.
 crt            = .true.
 hyperion       = .true.
 apow           =  3.50_dp
@@ -123,11 +121,11 @@ apow           =  3.50_dp
 fmax           =  0.0_dp
 porosity       =  0.0_dp
 
-vices          =  0.0_dp !by default no ice mantles
+V_ices          =  0.0_dp !by default no ice mantles
 
 na             =  50
-nlam           =  100
-lam1           =  0.3_dp
+nlam           =  1000
+lam1           =  0.05_dp
 lam2           =  1000.0_dp
 nm             =  3 !by default mixture of silicates, carbonaceous and iron sulfide
 n_add          =  0
@@ -197,8 +195,6 @@ DO while(tmp.ne.' ')
 			verbose = .true.
 		CASE('-geom')
 			geom = .true.
-		CASE('-non_norm_ice')
-			norm = .false.
 		CASE('--help','-help','help')
 			WRITE(*,'(" ")')
 			WRITE(*,'("			SIGMA FEB-19 HELP			")')
@@ -253,7 +249,6 @@ DO while(tmp.ne.' ')
 			WRITE(*,'("	-lambda_ref = wavelength in micron to normalize extinction, by default 2.2")')
 			WRITE(*,'("	-file or -filename = output filename, by default opacities")')
 			WRITE(*,'("	-v = verbose")')
-			WRITE(*,'("	-non_norm_ice = opacities normalized by average bulk density without ices like in Ossenkopf et al. 1994")')
 			WRITE(*,'("")')
 			WRITE(*,'("	========================================================")')
 			WRITE(*,'("	Default parameters :")')
@@ -409,9 +404,21 @@ ENDDO
 !Safety check - for mixture the same size distribution need to be used
 DO i=1,n_mix
 	IF (trim(sizedistrib_mix(i)).NE.trim(sizedistrib_mix(1))) THEN
-		write(*,*) "ERROR The same size distribution need to be used for mixture (mix option)."
-		exit
+		write(*,*) "ERROR The same size distribution needs to be defined for mixture (mix option, sizedistrib in DATA/input/COMPO.dat)."
+		stop
   ENDIF
+	IF (a_min_mix(i).NE.a_min_mix(1)) THEN
+		write(*,*) "ERROR The same minimum size needs to be defined for mixture (mix option, amin in DATA/input/COMPO.dat)."
+		stop
+  ENDIF
+	IF (a_max_mix(i).NE.a_max_mix(1)) THEN
+		write(*,*) "ERROR The same maximum size needs to be defined for mixture (mix option, amax in DATA/input/COMPO.dat)."
+		stop
+	ENDIF
+	IF (m_dust(i).NE.m_dust(1).AND.trim(rule(1)).EQ."mix") THEN
+		write(*,*) "ERROR The same Mdust/(100*MH) needs to be defined for mixture in DATA/input/COMPO.dat (mix option)"
+		stop
+	ENDIF
 END DO
 
 Kabs_tot = 0.0_dp
@@ -865,7 +872,7 @@ END
 		REAL (KIND=dp)                    :: vfrac(nm)
 		CHARACTER*500							        :: d_type(nm)										! type of component
 		CHARACTER*500							        :: ref_ind(nm)
-		REAL (KIND=dp)                    :: vices                  ! volume fraction of ices
+		REAL (KIND=dp)                    :: V_ices                  ! volume fraction of ices
 
 		TYPE (PARTICLE)                   :: p
 
@@ -952,7 +959,9 @@ END
                 REAL (KIND=dp)                    :: Mass2
 	        REAL (KIND=dp)                    :: Vol
 		REAL (KIND=dp)                    :: rho_av
-		REAL (KIND=dp)                    :: rho_avbis
+		REAL (KIND=dp)                    :: rho_av_no_ice
+		REAL (KIND=dp)                    :: rho_av_no_por
+		REAL (KIND=dp)                    :: rho_av_no_por_no_ice
 		REAL (KIND=dp)                    :: rho_ice
 		REAL (KIND=dp)                    :: rcore
 		REAL (KIND=dp)                    :: wvno
@@ -1035,6 +1044,9 @@ END
 	maxf=fmax
 
 	ns=nsubgrains
+	if (amin.EQ.amax) then
+		ns = 1
+	endif
 
 	allocate(e1(MAXMAT,nlam,ns))
 	allocate(e2(MAXMAT,nlam,ns))
@@ -1066,26 +1078,44 @@ END
 		frac_record(i) = vfrac(i)
 	ENDDO
 
-  vices = 0.0_dp
+  V_ices = 0.0_dp
 	i_ice = 0
 
   DO i=1,nm
 	  !Loop to deal with ices need to be here
 		IF (trim(d_type(i)).EQ."ices") THEN
-			vices = vfrac(i)
 			ice = ref_ind(i)
 			i_ice = i
-			if (i.eq.nm) nm = nm-1
+			if (i.eq.nm) then
+				nm = nm-1
+			ELSE
+				write(*,*) "ERROR : Ice mantles need to be defined as the last component in DATA/input/COMPO.DAT"
+				stop
+			ENDIF
 		ENDIF
 	ENDDO
 
+
+! Normalisation mandatory to take into acount
+! the case where the user already normalized all fractions by V_ices (06-may-2020)
+! there is a second normalization with variable porosity later
+! consistency has to be checked between the two !
+	tot=0.0_dp
+	do i=1,nm
+		tot=tot+frac(i)
+	enddo
+	frac=frac/tot
+	if (i_ice.gt.0) V_ices = vfrac(i_ice)/tot
+	!modified 07-may-2020 to deal with the case V_refractory ne 100%
+
 !First read size distribution:
+tot=0d0
 do l=1,nm
 	if(ns.eq.1) then
 		r(1)=10d0**((minlog+maxlog)/2d0)!/(1d0-porosity)**(1d0/3d0)
-		nr(l,1)=r(1)**(pow+1d0)
+		nr(l,1)=frac(l)
+		tot=tot+nr(l,1)*r(1)**3
 	else
-		tot=0d0
 !Size distribution is defined here
 !analytic expression for size distribution law:
 		if(trim(sizedistrib).EQ."plaw") then
@@ -1107,10 +1137,10 @@ do l=1,nm
 			end DO
 			CLOSE(109)
 		ENDIF
-		do k=1,ns
-			nr(l,k)=frac(l)*nr(l,k)/tot
-		enddo
 	endif
+	do k=1,ns
+		nr(l,k)=frac(l)*nr(l,k)/tot
+	enddo
 
 enddo
 
@@ -1177,6 +1207,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		frac(1:nm-1)=frac(1:nm-1)*(1.0_dp-porosity)
 
 		! Normalisation mandatory to make the Bruggeman rule converge
+		! Please check if the normalisation is still needed here
 		tot=0.0_dp
 		do i=1,nm
 			tot=tot+frac(i)
@@ -1188,7 +1219,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		frac(1:nm) = 0.0_dp
 	ENDIF
 
-	if (vices.le.0.0_dp) then
+	if (V_ices.le.0.0_dp) then
 		do k=1,ns
 			if(trim(sizedistrib).NE."plaw".AND.pr(1).GT.-1.0_dp) THEN
 				frac(1:nm-1)=frac_record(1:nm-1)*(1.0_dp-pr(k))
@@ -1238,7 +1269,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		do k=1,ns
 			if(trim(sizedistrib).NE."plaw".AND.pr(1).GT.-1.0_dp) THEN
 				frac=frac_record*(1.0_dp-pr(k))
-				!print *, nm !in the past nm was lost at this step
+				!print *, nm ! for record: in the past nm was lost at this step
 				frac(nm)=pr(k)
 				! print*, frac,pr(k)
 				! Normalization needs to be here if porosity different for each bin size
@@ -1262,7 +1293,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 			ENDIF
 
 			if (i_ice.eq.nm) then
-				call maxgarn_2compo(e1blend,e2blend,e1ice(i),e2ice(i),vices,e1blend_ice,e2blend_ice)
+				call maxgarn_2compo(e1blend,e2blend,e1ice(i),e2ice(i),V_ices,e1blend_ice,e2blend_ice)
 				e1(1,i,k)=e1blend_ice
 				e2(1,i,k)=e2blend_ice
 				IF(verbose.and.i.eq.1.and.k.eq.1) THEN
@@ -1285,38 +1316,35 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 	endif
 
 	rho_av=0.0_dp
-	rho_avbis=0.0_dp
+	rho_av_no_por=0.0_dp
 
 	! Tested on 13/02/2020
 	! Remained to be checked: differences between:
 	! MG: non-porous ICES
 	! BR: porous ICES
 	do i=1,nm
-		if (i_ice.eq.nm.or.norm) then
-			rho_av=rho_av+frac(i)*rho(i)
-			rho_avbis=rho_avbis+frac(i)/(1.0_dp-porosity)*rho(i)
-			!print *, i, frac(i), rho(i), rho_av, rho_avbis
-		ELSE
-			if (i.ne.i_ice) rho_av=rho_av+frac(i)*rho(i)/(1.0_dp-frac(i_ice))
-			! if (i.lt.nm.or.i.eq.nm.and.porosity.le.0.and.i.ne.i_ice) rho_avbis=rho_avbis+frac(i)*rho(i)/(1.0_dp-frac(i_ice))/(1.0_dp-porosity)
-			if (i.ne.i_ice) rho_avbis=rho_avbis+frac(i)*rho(i)/(1.0_dp-frac(i_ice))/(1.0_dp-porosity)
-			!print *, i, frac(i), rho(i), rho_av
-		endif
+		! This part is to compute rho without ice
+		! from 1 to nm is only refractories + porosity
+		rho_av        = rho_av + frac(i)*rho(i)
+		rho_av_no_por = rho_av_no_por + frac(i) / (1.0_dp - porosity) * rho(i)
 	enddo
+	rho_av_no_ice = rho_av
+	rho_av_no_por_no_ice = rho_av_no_por
+	! variation for ice computed with MG rule (default)
+	! i_ice defined before nm = nm+1 if porosity > 0
 	if(i_ice.eq.nm) THEN
-		rho_av = rho_av*(1.0_dp-vices) !do not apply to reproduce Ossenkopf dust model
-		rho_avbis = rho_avbis*(1.0_dp-vices) !do not apply to reproduce Ossenkopf dust model
-		if(norm) THEN
-			rho_av = rho_av+vices*rho_ice
-			rho_avbis = rho_avbis+vices*rho_ice
-		endif
+		rho_av = rho_av / (1.0_dp + V_ices) + V_ices / (1.0_dp + V_ices) * rho_ice
+		rho_av_no_por = rho_av_no_por / (1.0_dp + V_ices) + V_ices / (1.0_dp + V_ices) * rho_ice
 	endif
-	rho(1)=rho_av
-	rho(2)=rho_avbis
-	nm = 1
+	rho(1) = rho_av
+	rho(2) = rho_av_no_por
+	nm     = 1 !the composite aggregate is now defined
 	IF(verbose) THEN
 		write(*,'("Average bulk density = ",f8.3, " g/cm3")') rho_av
-		write(*,'("Average bulk density without porosity = ",f8.3, " g/cm3")') rho_avbis
+		if (porosity.gt.0) write(*,'("Average bulk density without porosity = ",f8.3, " g/cm3")') rho_av_no_por
+		if (V_ices.gt.0) write(*,'("Average bulk density without ice = ",f8.3, " g/cm3")') rho_av_no_ice
+		if (porosity.gt.0.and.V_ices.gt.0) write(*,'("Average bulk density without ice &
+		& and without porosity = ",f8.3, " g/cm3")') rho_av_no_por_no_ice
 		write(*,'("========================================================")')
 	ENDIF
 
@@ -1365,7 +1393,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		do l=1,nm
 		if(frac(l).eq.0d0) goto 10
 			do k=1,ns
-				r1=r(k)
+				r1=r(k)*(1.0_dp+V_ices)**(1.0_dp/3.0_dp)
 				Err=0
 				spheres=0
 				toolarge=0
@@ -1468,7 +1496,6 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 	! Replace by geometrical cross section
 	if (geom) then
 		nmono = nint(r1**3/a0**3)
-		! print *, "nmono =", nmono
 		if ( nmono.ge.16 ) then
 			if (Df.gt.2.0_dp) then
 				G = (4.27d0*nmono**(-0.315d0)*exp(-1.74d0/nmono**(0.243d0)))*nmono*pi*(a0)**2
@@ -1486,7 +1513,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 	        kabs_G = G*(1d0-exp(-cabs_RGD/G))*1d4/(Mass2*rho(2)/rho(1))
 
 		kabs_bis=max(kabs_G, cabs*1d4/(Mass))
-		!kabs_bis=kabs_G
+		!kabs_bis=kabs_G  !Uncomment only to compute pure Minato contribution
 		ksca_bis=1d4*cext/(Mass)-kabs_bis
 	endif
 
@@ -1494,15 +1521,20 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 	enddo
 
 	p%rho=Mass/Vol
+	!if (ilam.eq.1) print *, "Mass, Vol, r1, rho =", Mass, Vol, r1, p%rho
+	! print needed to check ice normalization
 	p%mass= Mass
 	if (geom) then
 		p%Kabs(ilam)=kabs_bis
 		p%Ksca(ilam)=ksca_bis
 	else
-		p%Kabs(ilam)=1d4*cabs/(Mass)
-		p%Ksca(ilam)=1d4*csca/(Mass)
+		!mdust_with_ice/mdust_without_ice  = 1 + V_ices * rho_ice / rho_without_ice
+		p%Kabs(ilam)=1d4*cabs/(Mass)*(1.0_dp+V_ices*rho_ice/rho_av_no_ice) !correction added on 05-may-2020
+		p%Ksca(ilam)=1d4*csca/(Mass)*(1.0_dp+V_ices*rho_ice/rho_av_no_ice)  !correction added on 05-may-2020
+		!if (ilam.eq.1) print *, "corr factor", (1.0_dp+V_ices*rho_ice/rho_av_no_ice)
+		!print needed to check ice normalization
 	endif
-	p%Kext(ilam)=1d4*cext/(Mass)
+	p%Kext(ilam)=1d4*cext/(Mass)*(1.0_dp+V_ices*rho_ice/rho_av_no_ice) !correction added on 05-may-2020
 	!p%r_size(k) = ((3d0*Vol)/(4d0*pi))**(1d0/3d0) !commented out on 17/02/2020 - to be checked with variable porosity
 	p%F(ilam)%F11(1:180)=f11(ilam,1:180)/csca
 	p%F(ilam)%F12(1:180)=f12(ilam,1:180)/csca
