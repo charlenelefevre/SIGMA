@@ -34,7 +34,7 @@ TYPE PARTICLE
 	REAL (KIND=dp)                  :: rvmin                  ! minimum radius
 	REAL (KIND=dp)                  :: rvmax                  ! maximal radius
 	REAL (KIND=dp)                  :: rho                    ! mass density in g.cm^-3
-	REAL (KIND=dp)                  :: mass                    ! mass density in g.cm^-3
+	REAL (KIND=dp)                  :: mass                   ! mass density in g
 	REAL (KIND=dp), ALLOCATABLE     :: Kabs(:)                ! absorption coefficient
 	REAL (KIND=dp), ALLOCATABLE     :: Ksca(:)                ! scattering coefficient
 	REAL (KIND=dp), ALLOCATABLE     :: Kext(:)                ! extinction coefficient
@@ -64,7 +64,7 @@ REAL (KIND=dp)                    :: porosity               ! porosity = 1 - fil
 INTEGER                           :: nm                     ! nr of grain material in a composite grain
 INTEGER                           :: n_add                  ! nr of grain material to be added
 INTEGER                           :: n_mix                  ! nr of grain material to be mixed
-REAL (KIND=dp)                    :: V_ices                  ! volume fraction of ices
+REAL (KIND=dp)                    :: V_ices                 ! volume fraction of ices
 
 TYPE(PARTICLE)                    :: p
 INTEGER                           :: i, j
@@ -105,7 +105,7 @@ REAL (KIND=dp), ALLOCATABLE     :: Kext_tot(:)                ! extinction coeff
 REAL (KIND=dp), ALLOCATABLE     :: g_tot(:)
 REAL (KIND=dp)                  :: Mtot
 
-REAL (KIND=dp)                  :: lambda_ref                      ! reference wavelength for normalization
+REAL (KIND=dp)                  :: lambda_ref                      ! reference wavelength for extinction normalisation
 
 ! ------------------------------------------------------------------------
 ! Default parameters - may be updated by users - to be moved to an external file?
@@ -885,7 +885,7 @@ END
 		REAL (KIND=dp)                    :: apow                   ! power law index
 		CHARACTER*500                     :: sizedistrib            ! IF 0 power law - ELSE READ from file(s)
 		REAL (KIND=dp)                    :: fmax                   ! maximum fraction of vaccum for DHS
-		REAL (KIND=dp)                    :: porosity               ! porosity = 1 - filling_factorSI
+		REAL (KIND=dp)                    :: porosity               ! porosity = 1 - filling_factor
 
 		INTEGER                           :: nm                     ! nr of grain material in a composite grain
 
@@ -953,6 +953,8 @@ END
 		REAL (KIND=dp), ALLOCATABLE       :: f(:)
 		REAL (KIND=dp), ALLOCATABLE       :: wf(:)
 		REAL (KIND=dp), ALLOCATABLE       :: rho(:)
+		REAL (KIND=dp), ALLOCATABLE       :: rho_k(:)
+		REAL (KIND=dp), ALLOCATABLE       :: rho_k_no_ice(:)
 
 		REAL (KIND=dp)                    :: rmie
 		REAL (KIND=dp)                    :: lmie
@@ -976,8 +978,9 @@ END
 		REAL (KIND=dp)                    :: tot, tot2
 		REAL (KIND=dp)                    :: pow
 		REAL (KIND=dp)                    :: Mass
-                REAL (KIND=dp)                    :: Mass2
-	        REAL (KIND=dp)                    :: Vol
+		REAL (KIND=dp)                    :: Mass_noice
+    REAL (KIND=dp)                    :: Mass2
+    REAL (KIND=dp)                    :: Vol
 		REAL (KIND=dp)                    :: rho_av
 		REAL (KIND=dp)                    :: rho_av_no_ice
 		REAL (KIND=dp)                    :: rho_av_no_por
@@ -1067,6 +1070,8 @@ END
 	if (amin.EQ.amax) then
 		ns = 1
 	endif
+	allocate(rho_k(ns))
+	allocate(rho_k_no_ice(ns))
 
 	allocate(e1(MAXMAT,nlam,ns))
 	allocate(e2(MAXMAT,nlam,ns))
@@ -1115,11 +1120,8 @@ END
 		ENDIF
 	ENDDO
 
-
 ! Normalisation mandatory to take into acount
 ! the case where the user already normalized all fractions by V_ices (06-may-2020)
-! there is a second normalization with variable porosity later
-! consistency has to be checked between the two !
 	tot=0.0_dp
 	do i=1,nm
 		tot=tot+frac(i)
@@ -1214,7 +1216,13 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		write(*,'("========================================================")')
 		write(*,'("Computing particle:")')
 		write(*,'("Size: ",f10.3," - ",f10.3," micron")') amin,amax
-		write(*,'("Shape: porosity = ",f8.2,"% , fmax = ",f8.3)') porosity*100,fmax
+		if(trim(sizedistrib).EQ."plaw") then
+			write(*,'("Shape: porosity = ",f8.2," % ")') porosity*100
+		ELSE
+			write(*,'("Shape: porosity defined according to DATA/sizedistrib/",a,".dat")') trim(sizedistrib)
+			write(*,'("Porosity range: ",f8.2," to ",f8.2," % ")') pr(1)*100, pr(ns)*100
+		endif
+		write(*,'("Shape: fmax = ",f8.3)') fmax
 		write(*,'("========================================================")')
 	ENDIF
 
@@ -1222,25 +1230,22 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 	e1(nm,1:nlam,1:ns)=1.0_dp
 	e2(nm,1:nlam,1:ns)=0.0_dp
 	rho(nm)=0.0_dp
+
+  !porosity is introduced only here but since a proper
+	!normalisation was done before Bruggeman rule can converge
 	IF(trim(sizedistrib).EQ."plaw".OR.pr(1).LE.-1.0_dp) THEN
+		!constant porosity
 		frac(nm) = porosity
 		frac(1:nm-1)=frac(1:nm-1)*(1.0_dp-porosity)
-
-		! Normalisation mandatory to make the Bruggeman rule converge
-		! Please check if the normalisation is still needed here
-		tot=0.0_dp
-		do i=1,nm
-			tot=tot+frac(i)
-		enddo
-		frac=frac/tot
-
 	ELSE
 		frac_record(1:nm) = frac(1:nm)
 		frac(1:nm) = 0.0_dp
+		!to prepare the introduction of variable porosity
 	ENDIF
 
 	if (V_ices.le.0.0_dp) then
 		do k=1,ns
+			!for size distribution defined by ASCII file
 			if(trim(sizedistrib).NE."plaw".AND.pr(1).GT.-1.0_dp) THEN
 				frac(1:nm-1)=frac_record(1:nm-1)*(1.0_dp-pr(k))
 				frac(nm)=pr(k)
@@ -1271,6 +1276,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 					e2bis(1,i,k)=e2(1,i,k)
 				endif
 
+
 				call brugg(frac,nm,epsj, eps_eff)
 				e1(1,i,k)=dreal(cdsqrt(eps_eff))
 				e2(1,i,k)=dimag(cdsqrt(eps_eff))
@@ -1291,14 +1297,6 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 				frac=frac_record*(1.0_dp-pr(k))
 				!print *, nm ! for record: in the past nm was lost at this step
 				frac(nm)=pr(k)
-				! print*, frac,pr(k)
-				! Normalization needs to be here if porosity different for each bin size
-				! Otherwise Bruggeman rule does not converge
-				tot=0.0_dp
-				do j=1,nm
-					tot=tot+frac(j)
-				enddo
-				frac=frac/tot
 			endif
 		do i=1,nlam
 			do j=1,nm
@@ -1310,6 +1308,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 				call brugg(frac,nm,epsj, eps_eff)
 				e1blend=dreal(cdsqrt(eps_eff))
 				e2blend=dimag(cdsqrt(eps_eff))
+				!if (k.eq.100) stop
 			ENDIF
 
 			if (i_ice.eq.nm) then
@@ -1337,36 +1336,49 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 
 	rho_av=0.0_dp
 	rho_av_no_por=0.0_dp
+	rho_k = 0.0_dp
+	rho_k_no_ice = 0.0_dp
 
 	! Tested on 13/02/2020
 	! Remained to be checked: differences between:
 	! MG: non-porous ICES
 	! BR: porous ICES
-	do i=1,nm
+
 		! This part is to compute rho without ice
 		! from 1 to nm is only refractories + porosity
-		rho_av        = rho_av + frac(i)*rho(i)
-		rho_av_no_por = rho_av_no_por + frac(i) / (1.0_dp - porosity) * rho(i)
-	enddo
+	IF(trim(sizedistrib).EQ."plaw".OR.pr(1).LE.-1.0_dp) THEN
+		do i=1,nm
+			rho_av        = rho_av + frac(i)*rho(i)
+			rho_av_no_por = rho_av_no_por + frac(i) / (1.0_dp - porosity) * rho(i)
+		enddo
+	ELSE
+		do k=1,ns
+			frac(nm)      = pr(k)
+			frac(1:nm-1)  = frac_record(1:nm-1) * (1.0_dp - pr(k))
+			do i=1,nm
+				rho_k(k)    = rho_k(k) + frac(i)*rho(i)
+			enddo
+			rho_k_no_ice(k) = rho_k(k)
+		enddo
+	ENDIF
 	rho_av_no_ice = rho_av
 	rho_av_no_por_no_ice = rho_av_no_por
 	! variation for ice computed with MG rule (default)
 	! i_ice defined before nm = nm+1 if porosity > 0
-	if(i_ice.eq.nm) THEN
+	if(i_ice.eq.nm.and.trim(sizedistrib).EQ."plaw".OR.pr(1).LE.-1.0_dp) THEN
 		rho_av = rho_av / (1.0_dp + V_ices) + V_ices / (1.0_dp + V_ices) * rho_ice
 		rho_av_no_por = rho_av_no_por / (1.0_dp + V_ices) + V_ices / (1.0_dp + V_ices) * rho_ice
+		rho(1) = rho_av
+		rho(2) = rho_av_no_por
+	else
+		do k=1,ns
+			rho_k(k) = rho_k(k) / (1.0_dp + V_ices) + V_ices / (1.0_dp + V_ices) * rho_ice
+		enddo
 	endif
-	rho(1) = rho_av
-	rho(2) = rho_av_no_por
 	nm     = 1 !the composite aggregate is now defined
-	IF(verbose) THEN
-		write(*,'("Average bulk density = ",f8.3, " g/cm3")') rho_av
-		if (porosity.gt.0) write(*,'("Average bulk density without porosity = ",f8.3, " g/cm3")') rho_av_no_por
-		if (V_ices.gt.0) write(*,'("Average bulk density without ice = ",f8.3, " g/cm3")') rho_av_no_ice
-		if (porosity.gt.0.and.V_ices.gt.0) write(*,'("Average bulk density without ice &
-		& and without porosity = ",f8.3, " g/cm3")') rho_av_no_por_no_ice
-		write(*,'("========================================================")')
-	ENDIF
+
+
+
 
 	do i=1,nlam
 		do j=1,n_ang
@@ -1401,7 +1413,8 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		kabs_bis=0d0
 		cext=0d0
 		Mass=0d0
-                Mass2=0d0
+		Mass_noice = 0.0_dp
+    Mass2=0d0
 		Vol=0d0
 
 		do i=1,n_ang/2
@@ -1504,9 +1517,17 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		cext=cext+wf(i)*nr(l,k)*cemie
 		csca=csca+wf(i)*nr(l,k)*csmie
 	  cabs=cabs+wf(i)*nr(l,k)*(cemie-csmie)
-		Mass=Mass+wf(i)*nr(l,k)*rho(l)*4d0*pi*r1**3/3d0
-    if (i.eq.1) Mass2=Mass2+nr(l,k)*rho(l)*4d0*pi*r1**3/3d0
-		Vol=Vol+wf(i)*nr(l,k)*4d0*pi*r1**3/3d0
+		IF(trim(sizedistrib).EQ."plaw".OR.pr(1).LE.-1.0_dp) THEN
+			Mass=Mass+wf(i)*nr(l,k)*rho_av*4d0*pi*r1**3/3d0
+			Mass_noice=Mass_noice+wf(i)*nr(l,k)*rho_av_no_ice*4d0*pi*r1**3/3d0
+	    if (i.eq.1) Mass2=Mass2+nr(l,k)*rho_av*(1.0_dp-porosity)*4d0*pi*r1**3/3d0
+			Vol=Vol+wf(i)*nr(l,k)*4d0*pi*r1**3/3d0
+		else
+			Mass=Mass+wf(i)*nr(l,k)*rho_k(k)*4d0*pi*r1**3/3d0
+			Mass_noice=Mass_noice+wf(i)*nr(l,k)*rho_k_no_ice(l)*4d0*pi*r1**3/3d0
+	    if (i.eq.1) Mass2=Mass2+nr(l,k)*rho_k(k)*4d0*pi*r1**3/3d0
+			Vol=Vol+wf(i)*nr(l,k)*4d0*pi*r1**3/3d0
+		ENDIF
 		p%r_size(k)=rad
 		p%qabs_size(ilam,k)=(cemie-csmie)/(pi*rad**2)
 		p%qsca_size(ilam,k)=csmie/(pi*rad**2)
@@ -1530,7 +1551,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		cabs_mono = cemie_mono-csmie_mono
 		cabs_RGD = cabs_mono*nmono
 
-	        kabs_G = G*(1d0-exp(-cabs_RGD/G))*1d4/(Mass2*rho(2)/rho(1))
+    kabs_G = G*(1d0-exp(-cabs_RGD/G))*1d4/(Mass2*rho(2)/rho(1))
 
 		kabs_bis=max(kabs_G, cabs*1d4/(Mass))
 		!kabs_bis=kabs_G  !Uncomment only to compute pure Minato contribution
@@ -1541,8 +1562,15 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 	enddo
 
 	p%rho=Mass/Vol
-	!if (ilam.eq.1) print *, "Mass, Vol, r1, rho =", Mass, Vol, r1, p%rho
-	! print needed to check ice normalization
+	if(trim(sizedistrib).NE."plaw".AND.pr(1).GT.-1.0_dp) THEN
+		rho_av_no_ice = Mass_noice/Vol
+		rho_av = Mass/Vol
+	endif
+
+
+
+	!if (ilam.eq.1) print *, "Mass, Vol, r1, rho =", Mass, Vol, r1, rho_av, rho_av_no_ice
+	! print needed to check ice normalisation
 	p%mass= Mass
 	if (geom) then
 		p%Kabs(ilam)=kabs_bis
@@ -1552,7 +1580,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		p%Kabs(ilam)=1d4*cabs/(Mass)*(1.0_dp+V_ices*rho_ice/rho_av_no_ice) !correction added on 05-may-2020
 		p%Ksca(ilam)=1d4*csca/(Mass)*(1.0_dp+V_ices*rho_ice/rho_av_no_ice)  !correction added on 05-may-2020
 		!if (ilam.eq.1) print *, "corr factor", (1.0_dp+V_ices*rho_ice/rho_av_no_ice)
-		!print needed to check ice normalization
+		!print needed to check ice normalisation
 	endif
 	p%Kext(ilam)=1d4*cext/(Mass)*(1.0_dp+V_ices*rho_ice/rho_av_no_ice) !correction added on 05-may-2020
 	!p%r_size(k) = ((3d0*Vol)/(4d0*pi))**(1d0/3d0) !commented out on 17/02/2020 - to be checked with variable porosity
@@ -1563,6 +1591,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 	p%F(ilam)%F34(1:180)=f34(ilam,1:180)/csca
 	p%F(ilam)%F44(1:180)=f44(ilam,1:180)/csca
 	tot = 0.0_dp
+	p%g(ilam) = 0.0_dp
 	do i=1,180
 		p%g(ilam)=p%g(ilam)+p%F(ilam)%F11(i)*cos(pi*(real(i)-0.5)/180d0) &
 	 &					*sin(pi*(real(i)-0.5)/180d0)
@@ -1571,6 +1600,18 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 	enddo
 	p%g(ilam)=p%g(ilam)/tot
 	enddo
+
+	IF(verbose) THEN
+		!if variable porosity then this rho value is variable
+		write(*,'("Average bulk density = ",f8.3, " g/cm3")') rho_av
+		if (porosity.gt.0) &
+		& write(*,'("Average bulk density without porosity = ",f8.3, " g/cm3")') rho_av_no_por
+		if (V_ices.gt.0) write(*,'("Average bulk density without ice = ",f8.3, " g/cm3")') rho_av_no_ice
+		if (porosity.gt.0.and.V_ices.gt.0) write(*,'("Average bulk density without ice &
+		& and without porosity = ",f8.3, " g/cm3")') rho_av_no_por_no_ice
+		write(*,'("========================================================")')
+	ENDIF
+
 
 
 #ifdef USE_FITSIO
