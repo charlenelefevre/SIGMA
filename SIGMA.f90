@@ -451,10 +451,12 @@ ENDIF
 
 
 IF (n_add.GT.0) THEN
-	Kabs_tot = 0.0_dp
-	Ksca_tot = 0.0_dp
-	Kext_tot = 0.0_dp
-	g_tot = 0.0_dp
+	! commented on 27-may-2020 to give the possibility to have both mix and add
+	! in one single composition file
+	! Kabs_tot = 0.0_dp
+	! Ksca_tot = 0.0_dp
+	! Kext_tot = 0.0_dp
+	! g_tot = 0.0_dp
 	nm = 1
 	DO i = 1,n_add
 		CALL ComputePart(p,a_min_add(i),a_max_add(i),apow,fmax,vfrac_add(i), porosity,na,&
