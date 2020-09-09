@@ -1370,13 +1370,13 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 	if(i_ice.eq.nm.and.trim(sizedistrib).EQ."plaw".OR.pr(1).LE.-1.0_dp) THEN
 		rho_av = rho_av / (1.0_dp + V_ices) + V_ices / (1.0_dp + V_ices) * rho_ice
 		rho_av_no_por = rho_av_no_por / (1.0_dp + V_ices) + V_ices / (1.0_dp + V_ices) * rho_ice
-		rho(1) = rho_av
-		rho(2) = rho_av_no_por
 	else
 		do k=1,ns
 			rho_k(k) = rho_k(k) / (1.0_dp + V_ices) + V_ices / (1.0_dp + V_ices) * rho_ice
 		enddo
 	endif
+	rho(1) = rho_av
+	rho(2) = rho_av_no_por
 	nm     = 1 !the composite aggregate is now defined
 
 
@@ -1522,7 +1522,7 @@ IF (verbose)	write(*,'("Refractive index tables used:")')
 		IF(trim(sizedistrib).EQ."plaw".OR.pr(1).LE.-1.0_dp) THEN
 			Mass=Mass+wf(i)*nr(l,k)*rho_av*4d0*pi*r1**3/3d0
 			Mass_noice=Mass_noice+wf(i)*nr(l,k)*rho_av_no_ice*4d0*pi*r1**3/3d0
-	    if (i.eq.1) Mass2=Mass2+nr(l,k)*rho_av*(1.0_dp-porosity)*4d0*pi*r1**3/3d0
+	    if (i.eq.1) Mass2=Mass2+nr(l,k)*rho_av*4d0*pi*r1**3/3d0
 			Vol=Vol+wf(i)*nr(l,k)*4d0*pi*r1**3/3d0
 		else
 			Mass=Mass+wf(i)*nr(l,k)*rho_k(k)*4d0*pi*r1**3/3d0
